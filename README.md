@@ -68,7 +68,7 @@ Bindings are built in (this build does not use the SteamVR binding editor). Butt
 | Y (tap) | Pause menu |
 | Y (hold) | Scoreboard / profile |
 | Left stick click | Sprint (or turn on **Auto Sprint** in the VR settings to sprint automatically) |
-| Right stick click | Ping — and **recenter** the view (works everywhere, including menus) |
+| Right stick click | Ping |
 
 **Menus** — the controllers act as a gamepad, and every on-screen prompt names the button that really does it (A is A, the trigger glyph means the trigger):
 
@@ -82,7 +82,6 @@ Bindings are built in (this build does not use the SteamVR binding editor). Butt
 | Right trigger | Forward to the panels on the right — expansions / DLC, artifacts (next page) |
 | Left grip / right grip | Previous / next tab in the settings panel. Nothing anywhere else — they cannot trigger anything by accident on the character select screen |
 | Y | Open / close the pause menu, skip the intro cutscene |
-| Right stick click | Recenter the view |
 
 On the character select screen, A picks the highlighted survivor; the **Ready** button then becomes the highlighted control, so press A again (or move to it with the stick) to ready up. One press never does both.
 
@@ -90,17 +89,17 @@ On the character select screen, A picks the highlighted survivor; the **Ready** 
 
 Open the in-game *Settings* and pick the **VR** tab (the same options are in `BepInEx/config/VRMod.cfg`, editable from the mod manager's Config editor). Notable options in this build:
 
-- **Auto Sprint** — sprint automatically whenever you push the left stick, and re-engage on its own after anything cancels the sprint (firing a skill, taking a hit).
-- **Controller aim pitch** — tilts the hands/aim up or down if your controllers report a different grip angle.
-- **Intro camera yaw** — where the opening cutscene faces (default 180 so the ship arrives in front of you).
-- **Left dominant hand**, snap turning, first person / motion controls, HUD scale and placement, and the other original options.
-
-The camera always sits at the character's eye level with a seated (device) tracking origin; click the right stick to recenter after you sit down or turn your chair.
+- **Auto Sprint** — *On by default* - sprint automatically whenever you push the left stick, and re-engage on its own after anything cancels the sprint (firing a skill, taking a hit).
+- **Highlight chests** — Chest, teleporters, shrines will have a yellow glow for easy locating.
+- **Item hints** — *On by default* When pinging an item or scrolling through items in a command run, item name and info will be included on your left wrist or at the bottom of the item panel.
+- **Seated mode** — *On by default* Because who wants to stand when playing this game? You can disable it to switch to standing mode but you'll have to restart the game to apply.
 
 ## Known issues in this build
 
 - Hand models are not shown inside menus (menus are navigated like a gamepad). Hands and weapons work normally in a run.
 - The hands for the Seekers of the Storm and Alloyed Collective survivors are generated from the character model at runtime rather than hand-made, so they are functional rather than pretty. Their position and rotation can be tuned per survivor in the config.
+- Navigation in survivor selection panel and difficulty, expansions, Artifacts are a little broken. If you find your cursor is off to the right somewhere, just keep on pushing your left joystick to the left and something will highlight. I'm working on that.
+- There are a couple item pickups that are incredibly distracting in VR like a shield item that I will eventually need to hide I think.
 - Bhaptics / Shockwave haptics suit support is still compiled in but has not been tested with this build.
 - Character support from [VRAPI](https://thunderstore.io/package/DrBibop/VRAPI/) (custom survivors with VR hands) is included unchanged and untested.
 
