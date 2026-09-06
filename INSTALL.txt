@@ -1,0 +1,46 @@
+Resurrected VRMod 1.0.1 by Blowntobytes - unofficial rebuild for the current Risk of Rain 2 Steam build
+(original mod by DrBibop, MIT license - https://github.com/DrBibop/RoR2VRMod)
+Source for this build: https://github.com/Blowntobytes/RoR2VRMod
+==========================================================================================
+
+Install (r2modman / Thunderstore Mod Manager)
+---------------------------------------------
+1. Dependencies: BepInExPack (bbepis) + HookGenPatcher (RiskofThunder), latest.
+2. If any older VRMod entry is installed (DrBibop's original, or a pre-release zip of this mod
+   imported as a local mod), open Installed, click it, and choose Uninstall first. Two copies
+   of the mod must never be installed together.
+3. Preferred: install "Resurrected VRMod" by Blowntobytes from Thunderstore (Online tab).
+   Offline alternative: Settings -> "Import local mod" -> pick this zip and set
+   Author to: Blowntobytes   (Mod name: Resurrected_VRMod, Version: 1.0.1) -> Import local mod.
+4. Check the Installed tab: it must show "Resurrected VRMod" version 1.0.1 by Blowntobytes.
+5. Make the OpenXR runtime for YOUR headset the active one (only one can be active):
+     Quest + Virtual Desktop -> VD streamer -> Streaming -> OpenXR runtime: VDXR
+     Rift CV1 / Rift S / Link -> Oculus PC app -> Settings -> General -> Set Oculus as active OpenXR runtime
+     Index / Vive / Bigscreen Beyond -> SteamVR -> Settings -> OpenXR -> Set SteamVR as OpenXR runtime
+     Do NOT enable the old "Use Oculus mode" config option; it does nothing in this build.
+6. Start modded. Pick up the controllers so they wake. The first launch copies the OpenXR
+   native files; if the headset stays black that one time, just launch again.
+
+Controls (short version)
+------------------------
+Gameplay: left stick move, right stick turn, triggers = primary/secondary, grips = utility/special,
+          A interact, B jump, X equipment, Y pause (hold: scoreboard), left stick click sprint,
+          right stick click = ping.
+Menus:    the controllers act as a gamepad and every on-screen prompt names the real button.
+          Left stick moves the selection, A confirms, B backs out, X = ready/alt confirm,
+          LEFT TRIGGER = previous page, RIGHT TRIGGER = next page, Y = pause menu.
+          The GRIPS switch tabs in the settings panel, and do nothing anywhere else.
+          Character select: A picks the survivor, then A again on the highlighted Ready button;
+                            RIGHT TRIGGER opens the panels on the right (expansions / DLC, artifacts)
+                            and LEFT TRIGGER goes back to the survivor grid; the stick moves within
+                            whichever page is showing.
+VR tab in Settings: Auto Sprint, controller aim pitch, intro camera yaw, left dominant hand, ...
+
+If anything is off, send the log
+--------------------------------
+Open BepInEx/LogOutput.log and send it. Search for these to check quickly:
+  * "Loading [Resurrected VRMod 1.0.1]"          -> confirms this build is actually running
+  * "[VR config]"                     -> shows the resolved settings this run
+  * "[VR input] Recenter triggered"   -> appears once when you click the right stick
+  * "[VR settings]"                   -> VR settings tab diagnostics
+  * "[VR input] OpenXR runtime:"      -> which runtime/headset the game actually connected to

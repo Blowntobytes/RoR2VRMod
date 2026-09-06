@@ -1,0 +1,7 @@
+/root/tools/bepinex/BepInEx/core/BepInEx.dll
+/root/tools/bepinex/BepInEx/core/BepInEx.Preloader.dll
+/root/tools/bepinex/BepInEx/core/0Harmony.dll
+/root/tools/bepinex/BepInEx/core/Mono.Cecil.dll
+/root/tools/bepinex/BepInEx/core/Mono.Cecil.Rocks.dll
+/root/tools/bepinex/BepInEx/core/MonoMod.RuntimeDetour.dll
+/root/tools/bepinex/BepInEx/core/MonoMod.Utils.dll

@@ -1,0 +1,70 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BepInEx.Core" Version="5.4.21" />
+    <PackageReference Include="MMHOOK.RoR2" Version="2025.11.19" />
+    <PackageReference Include="RiskOfRain2.GameLibs" Version="1.3.2-r.1" />
+    <PackageReference Include="UnityEngine.Modules" Version="2021.3.33" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\VREnabler\VRPatcher.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Bhaptics.Tact">
+      <HintPath>..\VREnabler\Dependencies\Bhaptics.Tact.dll</HintPath>
+    </Reference>
+    <Reference Include="Decalicious">
+      <HintPath>..\VREnabler\Dependencies\Decalicious-nstrip.dll</HintPath>
+    </Reference>
+    <Reference Include="ShockwaveManager">
+      <HintPath>..\VREnabler\Dependencies\ShockwaveManager.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.InputSystem">
+      <HintPath>..\VREnabler\Dependencies\Unity.InputSystem-nstrip.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.Postprocessing.Runtime">
+      <HintPath>D:\SteamLibrary\steamapps\common\Risk of Rain 2\Risk of Rain 2_Data\Managed\Unity.Postprocessing.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.XR.CoreUtils">
+      <HintPath>..\VREnabler\Dependencies\Unity.XR.CoreUtils.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.XR.Interaction.Toolkit">
+      <HintPath>..\VREnabler\Dependencies\Unity.XR.Interaction.Toolkit.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.XR.Management">
+      <HintPath>..\VREnabler\Dependencies\Unity.XR.Management-nstrip.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.XR.OpenXR">
+      <HintPath>..\VREnabler\Dependencies\Unity.XR.OpenXR-nstrip.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.SpatialTracking">
+      <HintPath>..\VREnabler\Dependencies\UnityEngine.SpatialTracking-nstrip.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Properties\Resources.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Resources.resx</DependentUpon>
+    </Compile>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="Properties\Resources.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+      <LastGenOutput>Resources.Designer.cs</LastGenOutput>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="copy &quot;$(TargetPath)&quot; &quot;C:\Users\olipo\AppData\Roaming\r2modmanPlus-local\RiskOfRain2\profiles\Default\BepInEx\plugins\DrBibop-VRMod\$(TargetFileName)&quot;" />
+  </Target>
+
+</Project>

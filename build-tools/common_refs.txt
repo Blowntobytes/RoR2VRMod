@@ -1,0 +1,16 @@
+/root/refs/game/mscorlib.dll
+/root/refs/game/netstandard.dll
+/root/refs/game/System.dll
+/root/refs/game/System.Core.dll
+/root/refs/game/System.Runtime.dll
+/root/refs/game/System.Xml.dll
+/root/refs/game/System.Xml.Linq.dll
+/root/refs/game/System.Numerics.dll
+/root/refs/game/UnityEngine.*Module.dll
+/root/refs/game/UnityEngine.dll
+/root/refs/game/UnityEngine.UI.dll
+/root/refs/game/Unity.Collections.dll
+/root/refs/game/Unity.Mathematics.dll
+/root/refs/game/Unity.Burst.dll
+/root/refs/game/UnityEngine.SpatialTracking.dll
+/root/refs/game/UnityEngine.XR.LegacyInputHelpers.dll
