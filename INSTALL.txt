@@ -1,4 +1,4 @@
-Resurrected VRMod 1.0.2 by Blowntobytes - unofficial rebuild for the current Risk of Rain 2 Steam build
+Resurrected VRMod 1.0.3 by Blowntobytes - unofficial rebuild for the current Risk of Rain 2 Steam build
 (original mod by DrBibop, MIT license - https://github.com/DrBibop/RoR2VRMod)
 Source for this build: https://github.com/Blowntobytes/RoR2VRMod
 ==========================================================================================
@@ -11,8 +11,8 @@ Install (r2modman / Thunderstore Mod Manager)
    of the mod must never be installed together.
 3. Preferred: install "Resurrected VRMod" by Blowntobytes from Thunderstore (Online tab).
    Offline alternative: Settings -> "Import local mod" -> pick this zip and set
-   Author to: Blowntobytes   (Mod name: Resurrected_VRMod, Version: 1.0.2) -> Import local mod.
-4. Check the Installed tab: it must show "Resurrected VRMod" version 1.0.2 by Blowntobytes.
+   Author to: Blowntobytes   (Mod name: Resurrected_VRMod, Version: 1.0.3) -> Import local mod.
+4. Check the Installed tab: it must show "Resurrected VRMod" version 1.0.3 by Blowntobytes.
 5. Make the OpenXR runtime for YOUR headset the active one (only one can be active):
      Quest + Virtual Desktop -> VD streamer -> Streaming -> OpenXR runtime: VDXR
      Rift CV1 / Rift S / Link -> Oculus PC app -> Settings -> General -> Set Oculus as active OpenXR runtime
@@ -39,7 +39,7 @@ VR tab in Settings: Auto Sprint, controller aim pitch, intro camera yaw, left do
 If anything is off, send the log
 --------------------------------
 Open BepInEx/LogOutput.log and send it. Search for these to check quickly:
-  * "Loading [Resurrected VRMod 1.0.2]"          -> confirms this build is actually running
+  * "Loading [Resurrected VRMod 1.0.3]"          -> confirms this build is actually running
   * "[VR config]"                     -> shows the resolved settings this run
   * "[VR input] Recenter triggered"   -> appears once when you click the right stick
   * "[VR settings]"                   -> VR settings tab diagnostics
