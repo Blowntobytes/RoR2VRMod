@@ -2,6 +2,10 @@
 
 This package continues [DrBibop's RoR2VRMod](https://github.com/DrBibop/RoR2VRMod) (MIT), whose own history ends at 2.18.x; its original changelog is kept in the source repository as `CHANGELOG-original-DrBibop.md`. Version numbers restart at 1.0.x for this package.
 
+### 1.0.2
+- README rewritten with step-by-step r2modman instructions (profile import code for the dependencies, then Import local mod).
+- Source repository made public.
+
 ### 1.0.1 — first public release
 
 (1.0.0 was consumed by a failed upload and was never published.)
