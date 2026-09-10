@@ -81,7 +81,10 @@ namespace VRMod
 
         internal static ConfigEntry<bool> RuntimeHandsDebug { get; private set; }
         internal static ConfigEntry<bool> RuntimeHandsRay { get; private set; }
-        internal static ConfigEntry<bool> RuntimeHandsForearm { get; private set; }
+        internal static ConfigEntry<string> HiddenItemDisplays { get; private set; }
+        internal static ConfigEntry<bool> MenuSelectionFrame { get; private set; }
+        internal static ConfigEntry<bool> VRKeyboardEnabled { get; private set; }
+        internal static ConfigEntry<bool> VRChatEnabled { get; private set; }
         internal static ConfigEntry<float> RuntimeHandsItemScale { get; private set; }
         internal static ConfigEntry<float> IntroSeatedHeightOffset { get; private set; }
         internal static ConfigEntry<bool> ShowUnfocusedWarning { get; private set; }
@@ -96,10 +99,67 @@ namespace VRMod
             return configFile.Bind<T>("RuntimeHands (experimental)", $"{bodyName}_{key}", defaultValue, description);
         }
 
-        /// <summary>Re-reads the config file so runtime hand offsets can be tuned live in debug mode.</summary>
-        internal static void ReloadRuntimeHandConfig()
+        private static System.DateTime lastConfigWrite = System.DateTime.MinValue;
+
+        /// <summary>
+        /// Re-reads the config file when it has been edited on disk (mod manager config editor,
+        /// text editor) so the runtime hand / aim / weapon offsets apply while the game is running.
+        /// Debug mode reloads unconditionally. Returns true when a reload happened.
+        /// </summary>
+        internal static bool ReloadRuntimeHandConfig()
         {
-            try { configFile.Reload(); } catch { }
+            try
+            {
+                if (!RuntimeHandsDebug.Value)
+                {
+                    System.DateTime write = System.IO.File.GetLastWriteTimeUtc(configFile.ConfigFilePath);
+                    if (lastConfigWrite == System.DateTime.MinValue) { lastConfigWrite = write; return false; }
+                    if (write == lastConfigWrite) return false;
+                    lastConfigWrite = write;
+                }
+                configFile.Reload();
+                return true;
+            }
+            catch { return false; }
+        }
+
+        /// <summary>
+        /// Settings that were renamed or removed in later builds. BepInEx keeps unknown entries
+        /// ("orphans") in the file forever, so they would otherwise pile up at the end of each
+        /// section and look like live settings. Removed from the file once at startup.
+        /// </summary>
+        private static readonly string[] obsoleteKeys =
+        {
+            "Include forearm",              // replaced by the per-character <Body>_Forearm entries
+            "Intro cutscene seated height", // renamed to "Intro cutscene seated height (metres)"
+        };
+
+        private static void RemoveObsoleteEntries()
+        {
+            try
+            {
+                System.Reflection.PropertyInfo prop = typeof(ConfigFile).GetProperty("OrphanedEntries",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+                var orphans = prop?.GetValue(configFile, null) as System.Collections.Generic.Dictionary<ConfigDefinition, string>;
+                if (orphans == null || orphans.Count == 0) return;
+
+                var remove = new System.Collections.Generic.List<ConfigDefinition>();
+                foreach (ConfigDefinition def in orphans.Keys)
+                {
+                    bool obsolete = System.Array.IndexOf(obsoleteKeys, def.Key) >= 0
+                                    || def.Key.EndsWith("_IncludeForearm");
+                    if (obsolete) remove.Add(def);
+                }
+                if (remove.Count == 0) return;
+
+                foreach (ConfigDefinition def in remove) orphans.Remove(def);
+                configFile.Save();
+                VRMod.StaticLogger.LogInfo($"[VR config] Removed {remove.Count} obsolete setting(s) from the config file: {string.Join(", ", remove.ConvertAll(d => d.Key).ToArray())}");
+            }
+            catch (System.Exception e)
+            {
+                VRMod.StaticLogger.LogWarning("[VR config] Could not clean obsolete settings: " + e.Message);
+            }
         }
 
         internal static void Init()
@@ -245,7 +305,7 @@ namespace VRMod
                 "RuntimeHands (experimental)",
                 "Debug mode",
                 false,
-                "Draws RGB axis lines on runtime hands (blue = aim direction), logs every entity state the local character enters, and re-reads this config file every 3 seconds so the per-character offsets below can be tuned live while in game."
+                "Draws RGB axis lines on runtime hands (blue = aim direction) and logs every entity state the local character enters. (The per-character offsets below are always re-read within 3 seconds of saving this file, debug mode or not.)"
             );
             RuntimeHandsRay = configFile.Bind<bool>(
                 "RuntimeHands (experimental)",
@@ -253,11 +313,29 @@ namespace VRMod
                 true,
                 "Shows the aim ray on runtime hands so aiming is usable before the offsets are tuned."
             );
-            RuntimeHandsForearm = configFile.Bind<bool>(
-                "RuntimeHands (experimental)",
-                "Include forearm",
+            VRChatEnabled = configFile.Bind<bool>(
+                "VR Settings",
+                "VR chat (left stick click)",
                 true,
-                "Also bakes the forearm into the runtime hand mesh (rigid - it will not bend at the elbow)."
+                "Click the left stick to type a chat message with the VR keyboard: in the character select lobby, and during a run only while the game is paused. DONE sends, B cancels."
+            );
+            VRKeyboardEnabled = configFile.Bind<bool>(
+                "VR Settings",
+                "VR keyboard",
+                true,
+                "Shows an on-screen keyboard when A is pressed on a text box in the menus (game browser search and filters, lobby password...). Left stick moves, A types, X backspace, Y space, B closes."
+            );
+            MenuSelectionFrame = configFile.Bind<bool>(
+                "VR Settings",
+                "Menu selection frame",
+                true,
+                "Draws a bright frame around the currently selected menu control so the cursor is easy to find on the VR menus."
+            );
+            HiddenItemDisplays = configFile.Bind<string>(
+                "VR Settings",
+                "Hidden item displays",
+                "Kinetic Dampener",
+                "Comma-separated list of items whose 3D display on YOUR character is hidden in VR (they still work; only the model on the body/hands is not drawn). Matched against the item's in-game name, case-insensitive. Example: Kinetic Dampener, Bundle of Fireworks"
             );
 
             RuntimeHandsItemScale = configFile.Bind<float>(
@@ -486,6 +564,9 @@ namespace VRMod
             settings.Add("vr_locked_camera", new ConfigSetting(LockedCameraPitch, ConfigSetting.SettingUpdate.Instant));
             settings.Add("vr_motion_controls", new ConfigSetting(UseMotionControls, ConfigSetting.SettingUpdate.AfterRestart));
             settings.Add("vr_haptics_suit", new ConfigSetting(HapticsSuit, ConfigSetting.SettingUpdate.AfterRestart));
+
+            // Last: everything is bound now, so anything still orphaned is truly unused.
+            RemoveObsoleteEntries();
         }
 
         private static void ChangeLIVHUD(object sender, EventArgs e)

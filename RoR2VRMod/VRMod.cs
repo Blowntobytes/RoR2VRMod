@@ -14,7 +14,7 @@ using UnityEngine.XR.OpenXR.Features;
 [assembly: SecurityPermission(SecurityAction.RequestMinimum, SkipVerification = true)]
 namespace VRMod
 {
-    [BepInPlugin("com.DrBibop.VRMod", "Resurrected VRMod", "1.0.3")]
+    [BepInPlugin("com.DrBibop.VRMod", "Resurrected VRMod", "1.0.4")]
     [BepInDependency("com.Moffein.BanditTweaks", BepInDependency.DependencyFlags.SoftDependency)]
     public class VRMod : BaseUnityPlugin
     {
@@ -41,6 +41,10 @@ namespace VRMod
             LobbyNavigation.Init();
             CameraFixes.Init();
             CutsceneFixes.Init();
+            ItemDisplayHider.Init();
+            MultiplayerMenuNavigation.Init();
+            SelectionFrame.Init();
+            VRKeyboard.Init();
             FocusChecker.Init();
             if (ModConfig.InitialMotionControlsValue)
             {

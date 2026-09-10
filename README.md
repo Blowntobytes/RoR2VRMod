@@ -82,7 +82,11 @@ Bindings are built in (this build does not use the SteamVR binding editor). Butt
 | Left grip / right grip | Previous / next tab in the settings panel. Nothing anywhere else — they cannot trigger anything by accident on the character select screen |
 | Y | Open / close the pause menu, skip the intro cutscene |
 
-On the character select screen, A picks the highlighted survivor; the **Ready** button then becomes the highlighted control, so press A again (or move to it with the stick) to ready up. One press never does both.
+On the character select screen, A picks the highlighted survivor; the **Ready** button then becomes the highlighted control, so press A again (or move to it with the stick) to ready up. One press never does both. Up/down on the rules panel walks Difficulty → Expansions → Artifacts; A on the Expansions or Artifacts header opens that picker.
+
+**Typing (VR keyboard):** move the highlight onto any text box (game browser search and filters, host name, password, tags, the password box on a game's info panel) and press A. A keyboard appears below the menu: left stick moves over the keys, A types, X is backspace, Y is space, B closes and keeps the text, and DONE confirms the box the way Enter does. A bright amber frame always shows which menu control is selected.
+
+**Chat:** click the left stick on the character select screen (or in a run while the game is paused) to open the keyboard on the chat box. B or DONE sends the message; B with nothing typed just closes it. The highlight returns to the menu afterwards.
 
 ## VR settings
 
@@ -92,13 +96,14 @@ Open the in-game *Settings* and pick the **VR** tab (the same options are in `Be
 - **Highlight chests** — Chest, teleporters, shrines will have a yellow glow for easy locating.
 - **Item hints** — *On by default* When pinging an item or scrolling through items in a command run, item name and info will be included on your left wrist or at the bottom of the item panel.
 - **Seated mode** — *On by default* Because who wants to stand when playing this game? You can disable it to switch to standing mode but you'll have to restart the game to apply.
+- **Hidden item displays** — items whose 3D model is hidden on your own character in VR (default: Kinetic Dampener). Comma-separated, matched by in-game name; the items still work.
+- **Menu selection frame** / **VR keyboard** / **VR chat (left stick click)** — *On by default* the amber selection frame, the on-screen keyboard and the chat shortcut; each can be switched off.
+- **Runtime hands** — per-survivor hand position/rotation offsets, aim/laser offsets, a per-survivor forearm switch (`<Body>_Forearm`, off for False Son), and held-weapon offsets (Operator's gun, False Son's club). Edits to these take effect within 3 seconds of saving the config file, so they can be tuned while in a run.
 
 ## Known issues in this build
 
 - Hand models are not shown inside menus (menus are navigated like a gamepad). Hands and weapons work normally in a run.
 - The hands for the Seekers of the Storm and Alloyed Collective survivors are generated from the character model at runtime rather than hand-made, so they are functional rather than pretty. Their position and rotation can be tuned per survivor in the config.
-- Navigation in survivor selection panel and difficulty, expansions, Artifacts are a little broken. If you find your cursor is off to the right somewhere, just keep on pushing your left joystick to the left and something will highlight. I'm working on that.
-- There are a couple item pickups that are incredibly distracting in VR like a shield item that I will eventually need to hide I think.
 - Bhaptics / Shockwave haptics suit support is still compiled in but has not been tested with this build.
 - Character support from [VRAPI](https://thunderstore.io/package/DrBibop/VRAPI/) (custom survivors with VR hands) is included unchanged and untested.
 

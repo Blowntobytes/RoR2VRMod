@@ -37,13 +37,13 @@ namespace VRMod
         private static readonly Dictionary<string, Vector3[]> bodyDefaults = new Dictionary<string, Vector3[]>
         {
             // bodyName -> { left hand rot, right hand rot, shared aim rot }
-            // Values tuned in-headset by Blowntobytes for the 1.0.0 release.
-            { "SeekerBody",    new[] { new Vector3(120f, 195f, 150f), new Vector3(45f, 10f, 120f),   new Vector3(60f, -15f, 0f) } },
-            { "ChefBody",      new[] { new Vector3(280f, 350f, 15f),  new Vector3(120f, 110f, 160f), new Vector3(80f, -15f, 0f) } },
+            // Values tuned in-headset by Blowntobytes (hands 1.0.0, aim 1.0.4).
+            { "SeekerBody",    new[] { new Vector3(120f, 195f, 150f), new Vector3(45f, 10f, 120f),   new Vector3(65f, -20f, 0f) } },
+            { "ChefBody",      new[] { new Vector3(280f, 350f, 15f),  new Vector3(120f, 110f, 160f), new Vector3(80f, -60f, 0f) } },
             { "FalseSonBody",  new[] { new Vector3(110f, 200f, 140f), new Vector3(60f, -25f, 90f),   new Vector3(60f, -15f, 0f) } },
             // Alloyed Collective (DLC3): the Operator is "DroneTechBody" internally.
-            { "DroneTechBody", new[] { new Vector3(220f, 10f, 210f),  new Vector3(60f, -10f, 100f),  new Vector3(60f, -15f, 0f) } },
-            { "DrifterBody",   new[] { new Vector3(-100f, 20f, 0f),   new Vector3(60f, -40f, -30f),  new Vector3(60f, -15f, 0f) } },
+            { "DroneTechBody", new[] { new Vector3(220f, 10f, 210f),  new Vector3(60f, -10f, 100f),  new Vector3(65f, -20f, 0f) } },
+            { "DrifterBody",   new[] { new Vector3(-100f, 20f, 0f),   new Vector3(60f, -40f, -30f),  new Vector3(65f, -20f, 0f) } },
         };
 
         /// <summary>The DLC2 and DLC3 survivors, pre-registered so all their entries exist in the
@@ -107,6 +107,25 @@ namespace VRMod
             }
             // The Operator's gun hangs off a weapon bone under the left hand.
             BindWeaponEntries("DroneTechBody");
+            BindWeaponEntries("FalseSonBody");
+            foreach (string bodyName in KnownRuntimeHandBodies) BodyIncludesForearm(bodyName);
+        }
+
+        private static readonly Dictionary<string, BepInEx.Configuration.ConfigEntry<bool>> forearmEntries = new Dictionary<string, BepInEx.Configuration.ConfigEntry<bool>>();
+
+        /// <summary>Whether this character's forearm is baked into the runtime hand. One setting
+        /// per character (the old global "Include forearm" switch is gone - it conflicted with
+        /// these). False Son's forearms are huge in first person, so his default is off.</summary>
+        internal static bool BodyIncludesForearm(string bodyName)
+        {
+            BepInEx.Configuration.ConfigEntry<bool> e;
+            if (!forearmEntries.TryGetValue(bodyName, out e))
+            {
+                bool def = bodyName != "FalseSonBody";
+                e = ModConfig.BindRuntimeHand<bool>(bodyName, "Forearm", def, "Bake this character's forearm into the runtime hand mesh (rigid - it will not bend at the elbow). Off = hand only.");
+                forearmEntries[bodyName] = e;
+            }
+            return e.Value;
         }
 
         internal static void Init()
@@ -191,7 +210,7 @@ namespace VRMod
 
                 HashSet<Transform> boneSet = new HashSet<Transform>(handBone.GetComponentsInChildren<Transform>(true));
 
-                if (ModConfig.RuntimeHandsForearm.Value && handBone.parent)
+                if (BodyIncludesForearm(bodyName) && handBone.parent)
                 {
                     string p = handBone.parent.name.ToLowerInvariant();
                     if (p.Contains("arm") || p.Contains("elbow") || p.Contains("wrist"))
@@ -468,10 +487,11 @@ namespace VRMod
         /// </summary>
         private static readonly Dictionary<string, BepInEx.Configuration.ConfigEntry<float>[]> weaponEntries = new Dictionary<string, BepInEx.Configuration.ConfigEntry<float>[]>();
 
-        // Tuned Operator gun offsets (1.0.0); other bodies default to zero.
+        // Tuned held-weapon offsets (Operator 1.0.0, False Son 1.0.4); other bodies default to zero.
         private static readonly Dictionary<string, float[]> weaponDefaults = new Dictionary<string, float[]>
         {
             { "DroneTechBody", new[] { -0.07f, -0.03f, 0f, 15f, -90f, -10f } },
+            { "FalseSonBody",  new[] { 0f, 0f, 0f, -5f, 10f, 20f } },
         };
 
         internal static BepInEx.Configuration.ConfigEntry<float>[] BindWeaponEntries(string bodyName)
@@ -637,6 +657,7 @@ namespace VRMod
 
             foreach (SkinnedMeshRenderer smr in renderers)
             {
+                if (ItemDisplayHider.ShouldHide(charModel, smr.transform)) continue;
                 if (!smr.sharedMesh)
                 {
                     // RoR2 applies skins asynchronously - at spawn time the mesh may not be
@@ -668,7 +689,7 @@ namespace VRMod
                     if (smrHand)
                     {
                         // Forearm option includes the whole forearm subtree (twist/roll bones too).
-                        boneInSet[i] = ModConfig.RuntimeHandsForearm.Value && smrHand.parent
+                        boneInSet[i] = BodyIncludesForearm(bodyName) && smrHand.parent
                             ? bones[i].IsChildOf(smrHand.parent)
                             : bones[i].IsChildOf(smrHand);
                     }
@@ -843,6 +864,7 @@ namespace VRMod
 
                 MeshRenderer sourceMr = mf.GetComponent<MeshRenderer>();
                 if (!sourceMr) continue;
+                if (ItemDisplayHider.ShouldHide(charModel, mf.transform)) continue;
 
                 // Walk up: is this mesh attached under the hand chain? Remember the hand bone
                 // instance of THIS hierarchy for the space conversion.
@@ -1268,13 +1290,13 @@ namespace VRMod
             string side = isLeftHand ? "Left" : "Right";
             VRMod.StaticLogger.LogInfo($"[VR hands] '{bodyName}' {side.ToUpperInvariant()} hand offsets: Rot({rotX.Value:F0}, {rotY.Value:F0}, {rotZ.Value:F0}) Pos({posX.Value:F2}, {posY.Value:F2}, {posZ.Value:F2}) Scale {scale.Value:F2} | Aim({aimRotX.Value:F0}, {aimRotY.Value:F0}, {aimRotZ.Value:F0}, shared by both hands). Edit '{bodyName}_{side}*' in the config to tune this hand.");
 
-            forearmAtBuild = ModConfig.RuntimeHandsForearm.Value;
+            forearmAtBuild = RuntimeHands.BodyIncludesForearm(bodyName);
 
             weaponRoot = transform.Find("Mesh/WeaponRoot");
             if (weaponRoot)
             {
                 weapon = RuntimeHands.BindWeaponEntries(bodyName);
-                VRMod.StaticLogger.LogInfo($"[VR hands] '{bodyName}' {side.ToUpperInvariant()} hand carries a weapon part: offsets Pos({weapon[0].Value:F2}, {weapon[1].Value:F2}, {weapon[2].Value:F2}) Rot({weapon[3].Value:F0}, {weapon[4].Value:F0}, {weapon[5].Value:F0}). Edit '{bodyName}_Weapon*' in the config (live with Debug mode).");
+                VRMod.StaticLogger.LogInfo($"[VR hands] '{bodyName}' {side.ToUpperInvariant()} hand carries a weapon part: offsets Pos({weapon[0].Value:F2}, {weapon[1].Value:F2}, {weapon[2].Value:F2}) Rot({weapon[3].Value:F0}, {weapon[4].Value:F0}, {weapon[5].Value:F0}). Edit '{bodyName}_Weapon*' in the config (edits apply within 3 s while in game).");
             }
         }
 
@@ -1364,10 +1386,13 @@ namespace VRMod
                 weaponRoot.localRotation = Quaternion.Euler(weapon[3].Value, weapon[4].Value, weapon[5].Value);
             }
 
-            if (ModConfig.RuntimeHandsDebug.Value && Time.unscaledTime >= nextReload)
+            // Live tuning: pick up edits to the config file every 3 s (always, not just in debug
+            // mode) so aim / hand / weapon offsets can be adjusted without restarting the game.
+            if (Time.unscaledTime >= nextReload)
             {
                 nextReload = Time.unscaledTime + 3f;
-                ModConfig.ReloadRuntimeHandConfig();
+                if (ModConfig.ReloadRuntimeHandConfig())
+                    VRMod.StaticLogger.LogInfo($"[VR hands] Config reloaded: '{bodyName}' {(isLeftHand ? "LEFT" : "RIGHT")} Rot({rotX.Value:F0}, {rotY.Value:F0}, {rotZ.Value:F0}) Pos({posX.Value:F2}, {posY.Value:F2}, {posZ.Value:F2}) Aim({aimRotX.Value:F0}, {aimRotY.Value:F0}, {aimRotZ.Value:F0}){(weapon != null ? $" Weapon Pos({weapon[0].Value:F2}, {weapon[1].Value:F2}, {weapon[2].Value:F2}) Rot({weapon[3].Value:F0}, {weapon[4].Value:F0}, {weapon[5].Value:F0})" : "")}.");
             }
 
             // Watchdog: a stage change (e.g. entering the Bazaar) destroys the character model
@@ -1407,7 +1432,7 @@ namespace VRMod
 
             // Mesh-affecting toggles need a re-bake: when "Include forearm" changes, rebuild the
             // hand pair once so the change is visible without a restart.
-            if (!rebuildRequested && ModConfig.RuntimeHandsForearm.Value != forearmAtBuild)
+            if (!rebuildRequested && RuntimeHands.BodyIncludesForearm(bodyName) != forearmAtBuild)
             {
                 CharacterBody body = MotionControls.currentBody;
                 if (body && body.name.StartsWith(bodyName))

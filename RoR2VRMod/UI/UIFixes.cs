@@ -933,6 +933,9 @@ namespace VRMod
             {
                 foreach (CombatHealthBarViewer.HealthBarInfo healthBarInfo in self.victimToHealthBarInfo.Values)
                 {
+                    // A victim can despawn between frames (common in multiplayer); skip its bar
+                    // rather than aborting the whole update and freezing every other bar.
+                    if (healthBarInfo == null || !healthBarInfo.sourceTransform || !healthBarInfo.healthBarRootObjectTransform) continue;
                     Vector3 position = healthBarInfo.sourceTransform.position;
                     position.y += healthBarInfo.verticalOffset;
                     Vector3 vector = sceneCam.transform.parent.InverseTransformPoint(position);

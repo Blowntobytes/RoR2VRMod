@@ -6,7 +6,7 @@ Persistent notes for AI sessions working on this codebase. Read this before maki
 
 - **What:** Unofficial OpenXR rebuild of DrBibop's Risk of Rain 2 VR mod
 - **Author:** Blowntobytes (GitHub: `Blowntobytes/RoR2VRMod`)
-- **Current version:** 1.0.3 (first public release; version numbers restarted from the 2.22.x pre-releases)
+- **Current version:** 1.0.4 (first public release; version numbers restarted from the 2.22.x pre-releases)
 - **Game target:** Risk of Rain 2 on Unity 2021.3.33f1 (current Steam build)
 - **Framework:** BepInEx 5.4.x plugin + patcher, MonoMod On./IL. hooks, HookGen (MMHOOK_RoR2.dll)
 - **VR stack:** Unity OpenXR 1.9.1, XR Management 4.4.0, XR CoreUtils 2.1.1, InputSystem 1.6.3

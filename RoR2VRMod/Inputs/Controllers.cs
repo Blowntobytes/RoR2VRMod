@@ -399,6 +399,46 @@ namespace VRMod
             return inputPlayer.controllers.ContainsController(vrControllers) && inputPlayer.controllers.maps.GetAllMaps(ControllerType.Custom).ToList().Count >= 2;
         }
 
+        private static float suppressGameInputUntil;
+        private static bool suppressUntilReleased;
+
+        /// <summary>Mutes all VR->game input until the given unscaled time.</summary>
+        internal static void SuppressUntil(float time)
+        {
+            if (time > suppressGameInputUntil) suppressGameInputUntil = time;
+        }
+
+        /// <summary>
+        /// Mutes all VR->game input until the given time AND until every face button and stick
+        /// click is physically released. A fixed delay alone was not enough: when the press that
+        /// closed the keyboard outlasted it, the game saw the still-held button as a fresh press.
+        /// </summary>
+        internal static void SuppressUntilReleased(float time)
+        {
+            SuppressUntil(time);
+            suppressUntilReleased = true;
+        }
+
+        private static bool AnyFaceButtonHeld()
+        {
+            UnityEngine.XR.InputDevice l = UnityEngine.XR.InputDevices.GetDeviceAtXRNode(UnityEngine.XR.XRNode.LeftHand);
+            UnityEngine.XR.InputDevice r = UnityEngine.XR.InputDevices.GetDeviceAtXRNode(UnityEngine.XR.XRNode.RightHand);
+            bool v;
+            if (l.isValid)
+            {
+                if (l.TryGetFeatureValue(UnityEngine.XR.CommonUsages.primaryButton, out v) && v) return true;
+                if (l.TryGetFeatureValue(UnityEngine.XR.CommonUsages.secondaryButton, out v) && v) return true;
+                if (l.TryGetFeatureValue(UnityEngine.XR.CommonUsages.primary2DAxisClick, out v) && v) return true;
+            }
+            if (r.isValid)
+            {
+                if (r.TryGetFeatureValue(UnityEngine.XR.CommonUsages.primaryButton, out v) && v) return true;
+                if (r.TryGetFeatureValue(UnityEngine.XR.CommonUsages.secondaryButton, out v) && v) return true;
+                if (r.TryGetFeatureValue(UnityEngine.XR.CommonUsages.primary2DAxisClick, out v) && v) return true;
+            }
+            return false;
+        }
+
         private static void UpdateVRInputs()
         {
             // NOTE: the old "Use Oculus mode" path used to live here. It scanned Unity's LEGACY
@@ -413,6 +453,21 @@ namespace VRMod
             // latches the button-down edge the instant SetButtonValueById is called, so
             // the pause menu flickers open even if we immediately clear element 24.
             bool lobbyActive = LobbyNavigation.IsInLobby;
+
+            // The VR keyboard owns the controllers while it is open (and for a moment after it
+            // closes, so the closing press does not leak into the menu underneath).
+            if (suppressUntilReleased && Time.unscaledTime >= suppressGameInputUntil)
+            {
+                if (AnyFaceButtonHeld()) suppressGameInputUntil = Time.unscaledTime + 0.1f;
+                else suppressUntilReleased = false;
+            }
+            if (VRKeyboard.IsOpen || Time.unscaledTime < suppressGameInputUntil)
+            {
+                for (int id = 0; id <= 5; id++) vrControllers.SetAxisValueById(id, 0f);
+                for (int id = 6; id <= 32; id++) vrControllers.SetButtonValueById(id, false);
+                VRKeyboard.Tick();
+                return;
+            }
 
             foreach (BaseInput input in inputs)
             {
@@ -499,6 +554,22 @@ namespace VRMod
             if (IsAnySkillButtonHeld())
             {
                 autoSprintHeldHigh = false;
+                skillBusyUntil = Time.unscaledTime + 0.2f;
+                return;
+            }
+
+            // Also yield while a skill is still PLAYING OUT after the button was released (Bandit's
+            // revolver has a wind-up before the shot; re-engaging sprint during it cancels the skill).
+            // "Busy" = the Weapon state machines are not in their idle/main state.
+            if (IsSkillStateBusy(body))
+            {
+                autoSprintHeldHigh = false;
+                skillBusyUntil = Time.unscaledTime + 0.2f;
+                return;
+            }
+            if (Time.unscaledTime < skillBusyUntil)
+            {
+                autoSprintHeldHigh = false;
                 return;
             }
 
@@ -529,6 +600,39 @@ namespace VRMod
             lastAutoSprintPulse = Time.unscaledTime;
             autoSprintHeldHigh = true;
             vrControllers.SetButtonValueById(13, true);
+        }
+
+        private static float skillBusyUntil;
+        private static RoR2.CharacterBody skillMachinesBody;
+        private static readonly List<EntityStateMachine> skillMachines = new List<EntityStateMachine>();
+
+        /// <summary>
+        /// True while one of the character's skill state machines ("Weapon", "Weapon2") is running
+        /// a state other than its idle/main state - i.e. an attack is winding up, firing or
+        /// recovering. Machines such as "Body" (movement) or "Stance" (MUL-T, permanently
+        /// non-idle) are deliberately not consulted.
+        /// </summary>
+        private static bool IsSkillStateBusy(RoR2.CharacterBody body)
+        {
+            if (!body) return false;
+            if (skillMachinesBody != body)
+            {
+                skillMachinesBody = body;
+                skillMachines.Clear();
+                foreach (EntityStateMachine m in body.GetComponents<EntityStateMachine>())
+                {
+                    if (m && (m.customName == "Weapon" || m.customName == "Weapon2"))
+                        skillMachines.Add(m);
+                }
+            }
+            for (int i = 0; i < skillMachines.Count; i++)
+            {
+                EntityStateMachine m = skillMachines[i];
+                if (!m || m.state == null) continue;
+                Type main = m.mainStateType.stateType;
+                if (main != null && m.state.GetType() != main) return true;
+            }
+            return false;
         }
 
         /// <summary>

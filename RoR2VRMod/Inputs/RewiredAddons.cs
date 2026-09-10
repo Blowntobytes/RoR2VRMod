@@ -213,6 +213,7 @@ namespace VRMod
 
             VRMod.StaticLogger.LogInfo($"[VR input] Menu page navigation bound to the triggers: UIPageLeft=action {pageLeft} (left trigger), UIPageRight=action {pageRight} (right trigger).");
 
+            ControllerGlyphs.RegisterFallbackBindings(uiElementMaps);
             return CreateCustomMap("VRUI", 2, controllerID, uiElementMaps);
         }
 
@@ -242,6 +243,7 @@ namespace VRMod
                 new ActionElementMap(400, ControllerElementType.Button, 31, Pole.Positive, AxisRange.Full, false) //BuySkill
             };
 
+            ControllerGlyphs.RegisterFallbackBindings(defaultElementMaps);
             return CreateCustomMap("VRDefault", 0, controllerID, defaultElementMaps);
         }
 

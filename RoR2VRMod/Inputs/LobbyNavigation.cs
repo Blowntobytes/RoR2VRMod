@@ -28,14 +28,8 @@ namespace VRMod
 
         private static int nextSweepFrame;
 
-        private static int lastFixedCount;
 
-        private static bool dumpedLayout;
-        private static bool dumpedBigLayout;
 
-        private static GameObject lastSelected;
-        private static int lastSelectedFrame;
-        private static bool tracedSelection;
 
         internal static void Init()
         {
@@ -44,11 +38,6 @@ namespace VRMod
                 orig(self);
                 activeLobby = self;
                 nextSweepFrame = 0;
-                lastFixedCount = -1;
-                dumpedLayout = false;
-                dumpedBigLayout = false;
-                lastSelected = null;
-                tracedSelection = false;
             };
 
             On.RoR2.UI.CharacterSelectController.OnDisable += (orig, self) =>
@@ -58,56 +47,6 @@ namespace VRMod
                     activeLobby = null;
             };
 
-            // TRACE: log every selection change while the character select is open. This answers
-            // the one question the layout dump cannot: when the left stick is pushed right on the
-            // Difficulty / Expansions / Artifacts panel and the highlight "disappears", WHICH control
-            // does the game actually select, and where is it? That tells us the real mechanism
-            // (off-canvas control, clipped popout, ScrollRect content, or the game's own wiring)
-            // instead of another guess.
-            On.RoR2.UI.MPEventSystem.Update += (orig, self) =>
-            {
-                orig(self);
-                if (!IsInLobby) return;
-
-                try
-                {
-                    GameObject sel = self.currentSelectedGameObject;
-                    if (sel == lastSelected) return;
-
-                    // Ignore the very first callback (initial selection at screen open).
-                    if (lastSelected == null && Time.frameCount - lastSelectedFrame < 2)
-                    {
-                        lastSelected = sel;
-                        lastSelectedFrame = Time.frameCount;
-                        return;
-                    }
-
-                    lastSelected = sel;
-                    lastSelectedFrame = Time.frameCount;
-
-                    if (sel == null)
-                    {
-                        VRMod.StaticLogger.LogInfo($"[VR input] Lobby select: <none> (deselected).");
-                        return;
-                    }
-
-                    Selectable selSel = sel.GetComponent<Selectable>();
-                    Transform root = activeLobby ? (activeLobby.GetComponentInParent<Canvas>() ? activeLobby.GetComponentInParent<Canvas>().rootCanvas.transform : null) : null;
-                    string path = sel.name;
-                    Transform p = sel.transform.parent;
-                    int depth = 0;
-                    while (p != null && p != root && depth < 6) { path = p.name + "/" + path; p = p.parent; depth++; }
-                    string pos = root ? root.InverseTransformPoint(sel.transform.position).ToString("F0") : sel.transform.position.ToString("F2");
-                    string grid = sel.GetComponentInParent<SurvivorIconController>() ? "GRID" : "    ";
-                    string isSel = selSel ? $"interactable={selSel.IsInteractable()}" : "not-a-Selectable";
-                    VRMod.StaticLogger.LogInfo($"[VR input] Lobby select: [{grid}] '{path}' local={pos} {isSel}");
-                    tracedSelection = true;
-                }
-                catch (System.Exception e)
-                {
-                    VRMod.StaticLogger.LogWarning($"[VR input] Lobby select trace failed: {e.Message}");
-                }
-            };
         }
 
         /// <summary>
@@ -166,6 +105,11 @@ namespace VRMod
             return false;
         }
 
+        private static bool IsCategoryHeader(Selectable s)
+        {
+            return s && s.name.IndexOf("Edit Category", System.StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
         private struct Entry
         {
             public Selectable selectable;
@@ -205,6 +149,25 @@ namespace VRMod
             return best;
         }
 
+        /// <summary>
+        /// A sensible control to land on when the lobby has no selection (e.g. after the chat
+        /// keyboard closes): the chosen survivor's icon, else the first survivor icon.
+        /// </summary>
+        internal static Selectable DefaultSelectable()
+        {
+            CharacterSelectController lobby = activeLobby;
+            if (!lobby || !lobby.isActiveAndEnabled) return null;
+            Selectable first = null;
+            foreach (SurvivorIconController icon in lobby.GetComponentsInChildren<SurvivorIconController>(false))
+            {
+                Selectable s = icon.GetComponent<Selectable>();
+                if (!s || !s.gameObject.activeInHierarchy || !s.IsInteractable()) continue;
+                if (icon.isCurrentChoice) return s;
+                if (first == null) first = s;
+            }
+            return first;
+        }
+
         private static void MakeNavigable(CharacterSelectController lobby)
         {
             Canvas canvas = lobby.GetComponentInParent<Canvas>();
@@ -223,12 +186,7 @@ namespace VRMod
 
             var entries = new List<Entry>();
             float gridMaxX = float.MinValue;
-            int skippedOffCanvas = 0;
 
-            // Diagnostic dump: capture every control's position each sweep, and print the layout on
-            // the first sweep AND the first time the rules panel opens (right side grows), because
-            // that is exactly when the stick starts walking off the visible screen.
-            var dump = new System.Text.StringBuilder();
             foreach (Selectable selectable in canvasRoot.GetComponentsInChildren<Selectable>(false))
             {
                 if (!selectable || !selectable.gameObject.activeInHierarchy) continue;
@@ -238,33 +196,13 @@ namespace VRMod
                 Vector3 pos = selectable.transform.position;
                 Vector3 local = canvasRoot.InverseTransformPoint(pos);
 
-                if (dump.Length < 80000)
-                {
-                    string path = selectable.name;
-                    Transform p = selectable.transform.parent;
-                    int depth = 0;
-                    while (p != null && p != canvasRoot && depth < 5) { path = p.name + "/" + path; p = p.parent; depth++; }
-                    string screen = "n/a";
-                    if (uiCam)
-                    {
-                        Vector3 sp = uiCam.WorldToScreenPoint(pos);
-                        screen = $"({sp.x:F0},{sp.y:F0},z{sp.z:F2})";
-                    }
-                    string inFrustum = frustum == null ? "n/a" : InsideFrustum(frustum, pos) ? "Y" : "N";
-                    string isGrid = selectable.GetComponentInParent<SurvivorIconController>() ? "GRID" : "    ";
-                    dump.AppendLine($"    [{isGrid}] '{path}' world=({pos.x:F2},{pos.y:F2},{pos.z:F2}) local=({local.x:F0},{local.y:F0}) screen={screen} frustum={inFrustum}");
-                }
-
                 // The survivor grid is the left/right anchor. Update it even when an icon sits just
                 // outside the frustum, so the side split can never collapse like it did in 2.19.10.
                 if (selectable.GetComponentInParent<SurvivorIconController>() && local.x > gridMaxX)
                     gridMaxX = local.x;
 
                 if (frustum != null && !InsideFrustum(frustum, pos))
-                {
-                    skippedOffCanvas++;
                     continue;
-                }
 
                 entries.Add(new Entry { selectable = selectable, pos = new Vector2(local.x, local.y) });
             }
@@ -281,12 +219,27 @@ namespace VRMod
                 entries[i] = e;
             }
 
-            int rightCount = 0;
+            // The Difficulty / Expansions / Artifacts header buttons sit at the far left of their
+            // header bar, but visually the bar spans the whole column. Treat them as centred on the
+            // column so up/down walks Difficulty -> Expansions header -> expansions -> Artifacts
+            // header -> artifacts, instead of only being reachable by pushing left.
+            float rightSum = 0f; int rightN = 0;
+            for (int i = 0; i < entries.Count; i++)
+                if (entries[i].rightSide && !IsCategoryHeader(entries[i].selectable)) { rightSum += entries[i].pos.x; rightN++; }
+            if (rightN > 0)
+            {
+                float centreX = rightSum / rightN;
+                for (int i = 0; i < entries.Count; i++)
+                {
+                    if (!entries[i].rightSide || !IsCategoryHeader(entries[i].selectable)) continue;
+                    Entry e = entries[i];
+                    e.pos = new Vector2(centreX, e.pos.y);
+                    entries[i] = e;
+                }
+            }
 
             for (int i = 0; i < entries.Count; i++)
             {
-                if (entries[i].rightSide) rightCount++;
-
                 Navigation nav = entries[i].selectable.navigation;
                 nav.mode = Navigation.Mode.Explicit;
                 nav.selectOnUp    = FindNeighbor(entries, i, Vector2.up);
@@ -296,29 +249,6 @@ namespace VRMod
                 entries[i].selectable.navigation = nav;
             }
 
-            // Print the captured layout twice per lobby: on the first sweep (survivor grid), and the
-            // first time the rules panel is open (right count jumps) - the state that reproduces the
-            // off-screen stick. Never more than once each so the log stays readable.
-            bool isFirstSweep = lastFixedCount < 0;
-            bool shouldDump = !dumpedLayout || (!dumpedBigLayout && rightCount >= 15);
-            if (shouldDump)
-            {
-                if (rightCount >= 15) dumpedBigLayout = true;
-                else dumpedLayout = true;
-
-                string camName = uiCam ? uiCam.name : "NONE";
-                string camState = uiCam ? $"enabled={uiCam.isActiveAndEnabled} pos=({uiCam.transform.position.x:F2},{uiCam.transform.position.y:F2},{uiCam.transform.position.z:F2}) rot=({uiCam.transform.eulerAngles.x:F0},{uiCam.transform.eulerAngles.y:F0},{uiCam.transform.eulerAngles.z:F0}) fov={uiCam.fieldOfView:F0} near={uiCam.nearClipPlane:F2} far={uiCam.farClipPlane:F0}" : "";
-                string canvasState = canvas ? $"name='{canvas.name}' mode={canvas.renderMode} worldCam={(canvas.worldCamera ? canvas.worldCamera.name : "none")} pixelRect={canvas.pixelRect}" : "NO CANVAS";
-                VRMod.StaticLogger.LogInfo($"[VR input] Lobby layout: canvas={canvasState}; uiCam='{camName}' {camState}; rootCanvas='{(canvas ? canvas.rootCanvas.name : "none")}'");
-                VRMod.StaticLogger.LogInfo($"[VR input] Lobby controls ({dump.Length} chars):\n{dump}");
-                VRMod.StaticLogger.LogInfo($"[VR input] Lobby split anchor: gridMaxX={gridMaxX:F0} -> boundary={(gridMaxX > float.MinValue ? gridMaxX + 100f : 0f):F0}; skippedOffCanvas={skippedOffCanvas}; firstSweep={isFirstSweep}");
-            }
-
-            if (entries.Count > 0 && entries.Count != lastFixedCount)
-            {
-                lastFixedCount = entries.Count;
-                VRMod.StaticLogger.LogInfo($"[VR input] Lobby: side-confined navigation on {entries.Count} control(s) ({entries.Count - rightCount} left / {rightCount} right, boundary x={boundary:F0}, skipped {skippedOffCanvas} off-canvas).");
-            }
         }
     }
 }

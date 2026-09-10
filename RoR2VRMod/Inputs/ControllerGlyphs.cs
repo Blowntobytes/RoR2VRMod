@@ -1,4 +1,5 @@
 ﻿using Rewired;
+using System.Collections.Generic;
 using RoR2;
 using RoR2.UI;
 using System.Linq;
@@ -163,13 +164,42 @@ namespace VRMod
             RoR2Application.onUpdate -= FindControllerType;
         }
 
+        /// <summary>
+        /// Action id -> VR controller element, taken from the mod's own Rewired maps. Used when a
+        /// prompt asks for a glyph before a Rewired player exists for the event system (the lobby
+        /// footer's Ready prompt is built that early), so it still shows the right VR button
+        /// instead of nothing.
+        /// </summary>
+        private static readonly Dictionary<int, int> fallbackActionToElement = new Dictionary<int, int>();
+
+        internal static void RegisterFallbackBindings(IEnumerable<ActionElementMap> maps)
+        {
+            foreach (ActionElementMap m in maps)
+                if (m != null && !fallbackActionToElement.ContainsKey(m.actionId))
+                    fallbackActionToElement[m.actionId] = m.elementIdentifierId;
+        }
+
+        private static string FallbackGlyph(string actionName)
+        {
+            if (currentGlyphs == null || string.IsNullOrEmpty(actionName) || !ReInput.isReady) return null;
+            int actionId = ReInput.mapping.GetActionId(actionName);
+            int element;
+            if (actionId < 0 || !fallbackActionToElement.TryGetValue(actionId, out element)) return null;
+            return element >= 0 && element < currentGlyphs.Length ? currentGlyphs[element] : null;
+        }
+
         private static string GetCustomGlyphString(On.RoR2.Glyphs.orig_GetGlyphString_MPEventSystem_string_AxisRange_InputSource_bool orig, MPEventSystem eventSystem, string actionName, AxisRange axisRange, MPEventSystem.InputSource currentInputSource, bool useLastActiveControllerOnly)
         {
             if (!eventSystem)
             {
                 return "???";
             }
-            if (isUsingMotionControls)
+            if (eventSystem.player == null)
+            {
+                string fallback = FallbackGlyph(actionName);
+                if (!string.IsNullOrEmpty(fallback)) return fallback;
+            }
+            if (isUsingMotionControls && eventSystem.player != null && currentGlyphs != null)
             {
                 Glyphs.resultsList.Clear();
                 eventSystem.player.controllers.maps.GetElementMapsWithAction(ControllerType.Custom, Controllers.ControllerID, actionName, false, Glyphs.resultsList);

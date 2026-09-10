@@ -2,6 +2,29 @@
 
 This package continues [DrBibop's RoR2VRMod](https://github.com/DrBibop/RoR2VRMod) (MIT), whose own history ends at 2.9.2; its original changelog is kept in the source repository as `CHANGELOG-original-DrBibop.md`. Version numbers restart at 1.0.x for this package.
 
+### 1.0.4
+
+**New**
+- VR keyboard: press A on any text box in the multiplayer menus (game browser search and filters, host name, password, tags, and the password box on a game's info panel) to type with the controllers. Left stick moves, A types, X backspace, Y space, B closes, DONE confirms. Setting: `[VR Settings] VR keyboard`.
+- Chat from the controllers: click the left stick on the character select screen, or in a run while paused, to type a chat message; B or DONE sends it, B with nothing typed closes. The menu highlight is restored afterwards and the closing press never reaches the lobby. Setting: `[VR Settings] VR chat (left stick click)`.
+- Bright amber selection frame around the currently selected menu control (`[VR Settings] Menu selection frame`).
+- `[VR Settings] Hidden item displays`: hides chosen items' 3D models on your own character in VR (default: Kinetic Dampener).
+- Per-survivor forearm switch for the runtime hands (`<Body>_Forearm`; off for False Son, replaces the old global "Include forearm").
+- Runtime hand, aim and weapon offsets in the config are re-read within 3 seconds of saving the file while in game (no restart, no Debug mode needed).
+- Retuned aim/laser defaults for Seeker, Chef, Operator and Drifter, and False Son's club offset.
+
+**Fixed**
+- Highlight chests: the glow now goes out when a chest, money pod or multishop terminal is used up by any player (host or client), including the other two terminals of a tri-shop; money pods are highlighted too.
+- Auto Sprint no longer interrupts skills that keep playing after the button is released (Bandit's Lights Out wind-up and similar); it waits for the weapon states to go idle.
+- Multiplayer menus are fully navigable with the stick: the server browser's filter column is shown in VR and reachable, right/left crosses between the filters and the game list, the Host screen's lobby panel (Invite / Copy / Leave) is reachable, and the highlight never disappears after a refresh or panel change.
+- Character select: up/down on the rules panel passes through the Expansions and Artifacts headers, so their pickers can be opened without pushing left.
+- Kinetic Dampener display no longer reappears after a stage change.
+- False Son's forearms are no longer baked into his VR hands.
+- Obsolete settings (`Include forearm`, `*_IncludeForearm`, `Intro cutscene seated height`) are removed from the config file automatically.
+- Menu glyph lookup at the title screen no longer throws a NullReference, and the Ready prompt (X) on the character select screen no longer disappears in multiplayer.
+- Game info panel: its password box and details are reachable and typable.
+- Health bar repositioning no longer spams NullReference errors in multiplayer when a body has no model yet.
+
 ### 1.0.3
 - README: revised install steps (r2modman profile code for dependencies, then Import local mod), controls and VR settings sections; Thunderstore page text now matches the GitHub README.
 

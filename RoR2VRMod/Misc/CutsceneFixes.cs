@@ -337,13 +337,11 @@ namespace VRMod
             if (skipGroup)
             {
                 introSkipGroup = skipGroup;
-                introSkipSilenced = false;
                 RoR2Application.onUpdate += KeepSkipPromptVisible;
             }
         }
 
         private static Transform introSkipGroup;
-        private static bool introSkipSilenced;
         private static TMPro.TMP_SpriteAsset introGlyphSheet;
 
         private static void KeepSkipPromptVisible()
@@ -370,25 +368,6 @@ namespace VRMod
                 // up). The button components themselves stay enabled so the HGButton keeps drawing
                 // its normal transparent background; only their persistent listeners are turned off.
                 Transform overlayRoot = overlay ? overlay : introSkipGroup;
-                if (!introSkipSilenced)
-                {
-                    introSkipSilenced = true;
-                    System.Text.StringBuilder sb = new System.Text.StringBuilder("[VR intro] skip overlay tree:\n");
-                    foreach (Transform t in overlayRoot.GetComponentsInChildren<Transform>(true))
-                    {
-                        sb.Append("  ").Append(GetPath(t, overlayRoot.parent)).Append(" active=").Append(t.gameObject.activeSelf).Append(" :");
-                        foreach (Component c in t.GetComponents<Component>())
-                        {
-                            if (!c) continue;
-                            sb.Append(' ').Append(c.GetType().Name);
-                            System.Reflection.FieldInfo an = c.GetType().GetField("actionName", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
-                            if (an != null) sb.Append("(").Append(an.GetValue(c)).Append(")");
-                            if (c is InputResponse ir && ir.inputActionNames != null) sb.Append("(").Append(string.Join(",", ir.inputActionNames)).Append(")");
-                        }
-                        sb.Append('\n');
-                    }
-                    VRMod.StaticLogger.LogInfo(sb.ToString());
-                }
                 foreach (Behaviour b in overlayRoot.GetComponentsInChildren<Behaviour>(true))
                 {
                     if (!b) continue;
