@@ -4,15 +4,14 @@ Play Risk of Rain 2 in virtual reality with motion controls, on the **current St
 
 This is an unofficial, community-maintained rebuild of [DrBibop's RoR2VRMod](https://github.com/DrBibop/RoR2VRMod). The original mod stopped working after the game moved to a newer Unity engine; this build ports it to that engine, switches it to OpenXR, and fixes the things that broke along the way. All credit for the mod itself goes to DrBibop and the original contributors (see Credits). Released under the same MIT license.
 
-## Download and Manual Install
+## Installation 
 
-**[Download the latest release zip](https://github.com/Blowntobytes/RoR2VRMod/releases/latest)** — on that page, open **Assets** and click `Blowntobytes-Resurrected_VRMod-<version>.zip`. Do not use GitHub's green "Code" button; that gives you the source code, not the mod.
-
-Then in r2modman / Thunderstore Mod Manager: Select Risk of Rain 2 → Steam platform. At *Profile selection* page → click on *Import/Update* at the bottom and *From code* Copy and paste this code in there `01a076cc-d897-138e-a2d2-fdaed4aa561b` → *Continue* → *Import* → *Import new profile* → *Create* That will install all of the dependencies. Then select that profile → *Settings → Profile → Import local mod* → select the zip in Downloads → *Import local mod* and start the game with **Start modded**. 
 
 **With r2modman / Thunderstore Mod Manager (recommended):** install it from Thunderstore with the "Install with Mod Manager" button, then start the game with "Start modded". If you previously imported a pre-release zip of this mod as a local mod (or still have DrBibop's original VRMod installed), uninstall that entry first — two copies of the mod must never be installed together.
 
-**Manual:** install BepInEx and HookGenPatcher first, then copy the `plugins` and `patchers` folders from the zip into your `BepInEx` folder.
+**[Manual install]**  Install BepInEx and HookGenPatcher first, then copy the `plugins` and `patchers` folders from the zip into your `BepInEx` folder. Download(https://github.com/Blowntobytes/RoR2VRMod/releases/latest) — on that page, open **Assets** and click `Blowntobytes-Resurrected_VRMod-<version>.zip`. Do not use GitHub's green "Code" button; that gives you the source code, not the mod.
+
+Then in r2modman / Thunderstore Mod Manager: Select Risk of Rain 2 → Steam platform. At *Profile selection* page → click on *Import/Update* at the bottom and *From code* Copy and paste this code in there `01a076cc-d897-138e-a2d2-fdaed4aa561b` → *Continue* → *Import* → *Import new profile* → *Create* That will install all of the dependencies. Then select that profile → *Settings → Profile → Import local mod* → select the zip in Downloads → *Import local mod* and start the game with **Start modded**.
 
 The first launch copies the OpenXR native files into place; if the headset stays black the very first time, simply launch again. Pick up both controllers before the title screen so the runtime wakes them.
 
