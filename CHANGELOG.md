@@ -1,6 +1,6 @@
 # Changelog
 
-This package continues [DrBibop's RoR2VRMod](https://github.com/DrBibop/RoR2VRMod) (MIT), whose own history ends at 1.1.0; its original changelog is kept in the source repository as `CHANGELOG-original-DrBibop.md`. Version numbers restart at 1.0.x for this package.
+This package continues [DrBibop's RoR2VRMod](https://github.com/DrBibop/RoR2VRMod) (MIT), whose own history ends at 2.9.2; its original changelog is kept in the source repository as `CHANGELOG-original-DrBibop.md`. Version numbers restart at 1.0.x for this package.
 
 ### 1.0.3
 - README: revised install steps (r2modman profile code for dependencies, then Import local mod), controls and VR settings sections; Thunderstore page text now matches the GitHub README.
