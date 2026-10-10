@@ -38,7 +38,7 @@ The mod does not care which headset you own — it asks Windows for whatever Ope
 |---|---|
 | Quest 2/3/Pro over Virtual Desktop | Virtual Desktop streamer → *Streaming* → OpenXR runtime **VDXR** |
 | Quest over Link / Air Link, Rift CV1, Rift S | Oculus (Meta) PC app → *Settings > General* → **Set Oculus as active OpenXR runtime** |
-| Valve Index, HTC Vive, Bigscreen Beyond, other SteamVR headsets | SteamVR → *Settings > OpenXR* → **Set SteamVR as OpenXR runtime** |
+| Valve Index, HTC Vive, Bigscreen Beyond, other SteamVR headsets(unconfirmed) | SteamVR → *Settings > OpenXR* → **Set SteamVR as OpenXR runtime** |
 | Windows Mixed Reality, HP Reverb G2 | Mixed Reality Portal / OpenXR Tools for WMR → set WMR as the runtime |
 
 Only one runtime can be active at a time, so switching headsets means flipping this setting. Controller bindings are registered for Oculus Touch, Quest Touch Pro, Valve Index, HTC Vive, HP Reverb G2, WMR and the generic KHR profile, so the button layout below applies on all of them (Index/Beyond knuckles: the "grip" is the squeeze).
@@ -60,6 +60,7 @@ Bindings are built in (this build does not use the SteamVR binding editor). Butt
 | Right trigger | Primary skill |
 | Left trigger | Secondary skill |
 | Left grip | Utility skill |
+| Left grip + A + right stick| Key item |
 | Right grip | Special skill |
 | A | Interact |
 | B | Jump |
