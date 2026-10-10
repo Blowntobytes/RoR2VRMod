@@ -60,7 +60,6 @@ Bindings are built in (this build does not use the SteamVR binding editor). Butt
 | Right trigger | Primary skill |
 | Left trigger | Secondary skill |
 | Left grip | Utility skill |
-| Left grip + A + right stick| Key item |
 | Right grip | Special skill |
 | A | Interact |
 | B | Jump |
@@ -69,6 +68,31 @@ Bindings are built in (this build does not use the SteamVR binding editor). Butt
 | Y (hold) | Scoreboard / profile |
 | Left stick click | Sprint (or turn on **Auto Sprint** in the VR settings to sprint automatically) |
 | Right stick click | Ping |
+**Key items and elements (Hallowed Concepts content)** — the left grip doubles as a modifier. Hold it and press another button; the grip's own skill (Utility) only fires if you release the grip *without* using a combo, so nothing goes off by accident.
+
+| Input | Action |
+|---|---|
+| Left grip (hold) + A | Use the key item |
+| Left grip (hold) + right stick left | Previous element |
+| Left grip (hold) + right stick right | Next element |
+| Left grip (release, no combo used) | Utility skill, as normal |
+
+The wrist panel on your left hand shows the key item you are carrying and the current element.
+
+**Vive / WMR wands** — these controllers have no A/B/X/Y, so the trackpad stands in: right trackpad **down** = A, **right** = B, left trackpad **down** = X, **up** = Y (tap or hold). Key item is therefore left grip + right trackpad down. Clicking the trackpad centre is the stick click.
+
+**Steam Frame** — mapped like a Quest/Touch controller; the table above applies as written.
+
+**Enforcer** — this survivor alone has the grips and triggers swapped so the shield is on the shield hand and the shotgun on the gun hand:
+
+| Input | Action |
+|---|---|
+| Left trigger | Primary (shotgun) |
+| Right trigger | Secondary |
+| Left grip | Special |
+| Right grip | Utility (Protect and Serve — raise the shield) |
+
+The shield is only drawn while raised; its transparency is the **Enforcer: Shield opacity** slider in the VR settings. Left/right dominant hand still applies on top of this.
 
 **Menus** — the controllers act as a gamepad, and every on-screen prompt names the button that really does it (A is A, the trigger glyph means the trigger):
 
