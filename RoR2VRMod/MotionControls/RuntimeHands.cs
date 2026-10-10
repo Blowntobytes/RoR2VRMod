@@ -19,7 +19,7 @@ namespace VRMod
     ///
     /// Alignment: the hand bone's finger direction is estimated from its child bones and rotated
     /// onto the controller's forward axis. Per-character offsets can then be tuned LIVE from the
-    /// config file (section "RuntimeHands (experimental)"): while RuntimeHandsDebug is on, the
+    /// config file (section "Character - <Body>", 2.23.35+): while RuntimeHandsDebug is on, the
     /// config file is re-read every few seconds, so offsets can be edited with the headset on and
     /// the hand moves as the file is saved. RGB axis lines are drawn at the hand origin
     /// (red=right, green=up, blue=forward/aim) and every local entity state is logged on enter so
@@ -32,6 +32,154 @@ namespace VRMod
     internal static class RuntimeHands
     {
         private static bool stateHookApplied;
+
+        /// <summary>
+        /// 2.23.36: rotation offsets are applied X first, then Y, then Z (each about the axes of the
+        /// debug gizmo: X = red, Y = green, Z = blue). X always turns about the red line exactly;
+        /// Y then turns about the green line as tilted by X; Z spins about the hand's own blue line.
+        /// </summary>
+        internal static Quaternion Compose(float x, float y, float z) =>
+            Quaternion.AngleAxis(x, Vector3.right) * Quaternion.AngleAxis(y, Vector3.up) * Quaternion.AngleAxis(z, Vector3.forward);
+
+        /// <summary>Converts an old Unity-Euler (Z, X, Y) triple to the equivalent Compose() angles.</summary>
+        internal static Vector3 LegacyToXYZ(Vector3 e)
+        {
+            Matrix4x4 m = Matrix4x4.Rotate(Quaternion.Euler(e));
+            float b = Mathf.Asin(Mathf.Clamp(m.m02, -1f, 1f)) * Mathf.Rad2Deg;
+            float a, c;
+            if (Mathf.Abs(m.m02) < 0.9999f)
+            {
+                a = Mathf.Atan2(-m.m12, m.m22) * Mathf.Rad2Deg;
+                c = Mathf.Atan2(-m.m01, m.m00) * Mathf.Rad2Deg;
+            }
+            else
+            {
+                a = Mathf.Atan2(m.m21, m.m11) * Mathf.Rad2Deg;
+                c = 0f;
+            }
+            return new Vector3(Mathf.Round(a * 10f) / 10f, Mathf.Round(b * 10f) / 10f, Mathf.Round(c * 10f) / 10f);
+        }
+
+        // ---- 2.23.38: "set current pose as zero" ------------------------------------------------
+        // Every rotation offset is Base * Compose(x, y, z). Base is a stored quaternion
+        // ("<stem>Base" in the character's section); SetCurrentPoseAsZero folds the current angles
+        // into it and resets them to 0, so tuning always starts from 0/0/0, far from gimbal lock.
+
+        internal sealed class RotEntry
+        {
+            internal BepInEx.Configuration.ConfigEntry<float> x, y, z;
+            internal BepInEx.Configuration.ConfigEntry<string> b;
+            private string parsedFrom; private Quaternion parsed = Quaternion.identity;
+            internal Quaternion Base
+            {
+                get
+                {
+                    if (b == null) return Quaternion.identity;
+                    if (b.Value != parsedFrom) { parsedFrom = b.Value; parsed = ParseQ(b.Value); }
+                    return parsed;
+                }
+            }
+            internal Quaternion Value => Base * Compose(x.Value, y.Value, z.Value);
+            internal void Fold()
+            {
+                b.Value = FormatQ(Value);
+                x.Value = 0f; y.Value = 0f; z.Value = 0f;
+            }
+        }
+
+        private static readonly Dictionary<string, RotEntry> rotEntries = new Dictionary<string, RotEntry>();
+
+        internal static string FormatQ(Quaternion q)
+        {
+            System.Globalization.CultureInfo c = System.Globalization.CultureInfo.InvariantCulture;
+            return $"{q.x.ToString("0.######", c)}, {q.y.ToString("0.######", c)}, {q.z.ToString("0.######", c)}, {q.w.ToString("0.######", c)}";
+        }
+
+        internal static Quaternion ParseQ(string s)
+        {
+            try
+            {
+                string[] p = s.Split(',');
+                if (p.Length != 4) return Quaternion.identity;
+                System.Globalization.CultureInfo c = System.Globalization.CultureInfo.InvariantCulture;
+                Quaternion q = new Quaternion(float.Parse(p[0].Trim(), c), float.Parse(p[1].Trim(), c), float.Parse(p[2].Trim(), c), float.Parse(p[3].Trim(), c));
+                float n = Mathf.Sqrt(q.x * q.x + q.y * q.y + q.z * q.z + q.w * q.w);
+                if (n < 1e-4f) return Quaternion.identity;
+                return new Quaternion(q.x / n, q.y / n, q.z / n, q.w / n);
+            }
+            catch { return Quaternion.identity; }
+        }
+
+        /// <summary>Registers (binds) the zero-pose Base entry for a rotation triple.</summary>
+        internal static RotEntry Rot(string bodyName, string stem,
+            BepInEx.Configuration.ConfigEntry<float> x, BepInEx.Configuration.ConfigEntry<float> y, BepInEx.Configuration.ConfigEntry<float> z,
+            Quaternion defaultBase)
+        {
+            string key = bodyName + "/" + stem;
+            if (rotEntries.TryGetValue(key, out RotEntry e)) return e;
+            e = new RotEntry
+            {
+                x = x, y = y, z = z,
+                b = ModConfig.BindRuntimeHand<string>(bodyName, stem + "Base", FormatQ(defaultBase),
+                    $"Internal: the pose that '{bodyName}_{stem}X/Y/Z' = 0/0/0 stands for (a quaternion x, y, z, w). Written by '{bodyName}_SetCurrentPoseAsZero'; delete this line to go back to the built-in pose.")
+            };
+            rotEntries[key] = e;
+            return e;
+        }
+
+        private static readonly Dictionary<string, BepInEx.Configuration.ConfigEntry<bool>> zeroPoseEntries = new Dictionary<string, BepInEx.Configuration.ConfigEntry<bool>>();
+
+        internal static BepInEx.Configuration.ConfigEntry<bool> ZeroPoseEntry(string bodyName)
+        {
+            string body = bodyName.IndexOf('_') > 0 ? bodyName.Substring(0, bodyName.IndexOf('_')) : bodyName;
+            if (!zeroPoseEntries.TryGetValue(bodyName, out var e))
+            {
+                e = ModConfig.BindRuntimeHand<bool>(bodyName, "SetCurrentPoseAsZero", false,
+                    "Set to true and save: every hand, aim and weapon rotation of this character (this form) keeps its current pose but its RotX/RotY/RotZ become 0, so you tune from zero again. Switches itself back to false.");
+                zeroPoseEntries[bodyName] = e;
+            }
+            return e;
+        }
+
+        /// <summary>Folds every bound rotation of this body into its Base when the switch is on.</summary>
+        internal static void ProcessZeroPose(string bodyName)
+        {
+            var sw = ZeroPoseEntry(bodyName);
+            if (!sw.Value) return;
+            int n = 0;
+            string prefix = bodyName + "/";
+            ModConfig.Batched(() =>
+            {
+                foreach (var kv in rotEntries)
+                    if (kv.Key.StartsWith(prefix, StringComparison.Ordinal)) { kv.Value.Fold(); n++; }
+                sw.Value = false;
+            });
+            ModConfig.FlushIfDirty();
+            VRMod.StaticLogger.LogInfo($"[VR hands] '{bodyName}': current pose set as zero for {n} rotation set(s) - their RotX/Y/Z are now 0.");
+        }
+
+        /// <summary>The built-in (baked default) hand rotation, used as the held weapon's anchor.</summary>
+        internal static Quaternion BakedHandRotation(string bodyName, bool leftHand)
+        {
+            Vector3[] defs = DefaultsFor(bodyName);
+            Vector3 v = LegacyToXYZ(leftHand ? defs[0] : defs[1]);
+            return Compose(v.x, v.y, v.z);
+        }
+
+        internal static Quaternion BakedAimRotation(string bodyName)
+        {
+            Vector3 v = LegacyToXYZ(DefaultsFor(bodyName)[2]);
+            return Compose(v.x, v.y, v.z);
+        }
+
+        internal static Quaternion BakedWeaponRotation(string bodyName)
+        {
+            if (IsPerSideWeaponBody(bodyName) || !weaponDefaults.TryGetValue(bodyName, out float[] w)) return Quaternion.identity;
+            Vector3 v = LegacyToXYZ(new Vector3(w[3], w[4], w[5]));
+            return Compose(v.x, v.y, v.z);
+        }
+
+        internal const string AxisNote = " Axis colours on the debug gizmo (Debug mode): X = RED, Y = GREEN, Z = BLUE (blue points along the fingers / aim). Order: X first (always about the red line), then Y (green), then Z (blue, spins about the part's own length).";
 
         /// <summary>Starting angles per character. Compile-time only - no shared config entries.</summary>
         private static readonly Dictionary<string, Vector3[]> bodyDefaults = new Dictionary<string, Vector3[]>
@@ -46,10 +194,66 @@ namespace VRMod
             { "DrifterBody",   new[] { new Vector3(-100f, 20f, 0f),   new Vector3(60f, -40f, -30f),  new Vector3(65f, -20f, 0f) } },
         };
 
-        /// <summary>The DLC2 and DLC3 survivors, pre-registered so all their entries exist in the
+        /// <summary>The DLC2, DLC3 and DLC4 survivors, pre-registered so all their entries exist in the
         /// config file at startup instead of appearing only after each one is first played.
-        /// (DroneTechBody = Operator.)</summary>
-        internal static readonly string[] KnownRuntimeHandBodies = { "SeekerBody", "ChefBody", "FalseSonBody", "DroneTechBody", "DrifterBody" };
+        /// (DroneTechBody = Operator; Enforcer2Body = Enforcer and AcolyteBody = Acolyte, both from
+        /// Hallowed Concepts / DLC4 - untuned, they start from the generic defaults.)</summary>
+        internal static readonly string[] KnownRuntimeHandBodies = { "SeekerBody", "ChefBody", "FalseSonBody", "DroneTechBody", "DrifterBody", "Enforcer2Body", "AcolyteBody" };
+
+        private static readonly Dictionary<string, string> baseModelNames = new Dictionary<string, string>();
+
+        /// <summary>Body name for the body's normal model; "Body_Form" (e.g. "AcolyteBody_Reaper")
+        /// once the same body is showing a different model.</summary>
+        // 2.23.29: Acolyte's Reaper form does NOT swap the model - it toggles two child objects
+        // (acolyteModel / reaperModel) under the same model. The hidden one is ignored while baking.
+        private static Transform hiddenFormRoot;
+
+        internal static Transform HiddenFormRoot(CharacterBody body)
+        {
+            AcolyteBodySwapController swap = body ? body.GetComponent<AcolyteBodySwapController>() : null;
+            if (!swap) return null;
+            GameObject hidden = swap.isReaperForm ? swap.acolyteModel : swap.reaperModel;
+            return hidden ? hidden.transform : null;
+        }
+
+        private static bool InHiddenForm(Transform t)
+        {
+            return hiddenFormRoot && t && t.IsChildOf(hiddenFormRoot);
+        }
+
+        internal static string FormConfigName(string bodyName, Transform model, CharacterBody body = null)
+        {
+            if (!model) return bodyName;
+            AcolyteBodySwapController swapForm = body ? body.GetComponent<AcolyteBodySwapController>() : null;
+            if (swapForm && swapForm.isReaperForm)
+            {
+                VRMod.StaticLogger.LogInfo($"[VR hands] '{bodyName}' is in its Reaper form - using form config '{bodyName}_Reaper'.");
+                return bodyName + "_Reaper";
+            }
+            string modelName = model.name.Replace("(Clone)", "").Trim();
+            string baseName;
+            if (!baseModelNames.TryGetValue(bodyName, out baseName))
+            {
+                // The body PREFAB's model is the normal form, whatever is showing right now.
+                try
+                {
+                    GameObject prefab = body ? BodyCatalog.GetBodyPrefab(body.bodyIndex) : null;
+                    ModelLocator ml = prefab ? prefab.GetComponent<ModelLocator>() : null;
+                    if (ml && ml.modelTransform) baseName = ml.modelTransform.name.Replace("(Clone)", "").Trim();
+                }
+                catch { }
+                if (string.IsNullOrEmpty(baseName)) baseName = modelName;
+                baseModelNames[bodyName] = baseName;
+            }
+            if (modelName == baseName) return bodyName;
+
+            string form = modelName.StartsWith("mdl", StringComparison.OrdinalIgnoreCase) ? modelName.Substring(3) : modelName;
+            form = new string(form.Where(char.IsLetterOrDigit).ToArray());
+            if (form.Length == 0) form = "Form";
+            string name = bodyName + "_" + form;
+            VRMod.StaticLogger.LogInfo($"[VR hands] '{bodyName}' is showing model '{modelName}' (normal: '{baseName}') - using form config '{name}'.");
+            return name;
+        }
 
         private static Vector3[] DefaultsFor(string bodyName)
         {
@@ -76,23 +280,28 @@ namespace VRMod
             out BepInEx.Configuration.ConfigEntry<float> aimRotZ)
         {
             Vector3[] defs = DefaultsFor(bodyName);
-            Vector3 rotDef = leftHand ? defs[0] : defs[1];
-            Vector3 aimDef = defs[2];
+            // Baked defaults were tuned in the old Euler order - convert them to Compose() angles.
+            // 2.23.38: angles start at 0; the built-in pose lives in the "...RotBase" entries.
+            Vector3 rotDef = Vector3.zero;
+            Vector3 aimDef = Vector3.zero;
             string side = leftHand ? "Left" : "Right";
             string sideWord = leftHand ? "LEFT" : "RIGHT";
             string note = $" Applies to the {sideWord} hand only - the two hands are tuned independently and neither is mirrored from the other.";
 
-            rotX = ModConfig.BindRuntimeHand(bodyName, side + "RotX", rotDef.x, $"{sideWord} HAND MESH rotation offset (degrees) around X.{note} Does not affect the aim/laser.");
-            rotY = ModConfig.BindRuntimeHand(bodyName, side + "RotY", rotDef.y, $"{sideWord} HAND MESH rotation offset (degrees) around Y.{note} Does not affect the aim/laser.");
-            rotZ = ModConfig.BindRuntimeHand(bodyName, side + "RotZ", rotDef.z, $"{sideWord} HAND MESH rotation offset (degrees) around Z.{note} Does not affect the aim/laser.");
-            posX = ModConfig.BindRuntimeHand(bodyName, side + "PosX", 0f, $"{sideWord} HAND MESH position offset (meters) on X.{note}");
-            posY = ModConfig.BindRuntimeHand(bodyName, side + "PosY", 0f, $"{sideWord} HAND MESH position offset (meters) on Y.{note}");
-            posZ = ModConfig.BindRuntimeHand(bodyName, side + "PosZ", 0f, $"{sideWord} HAND MESH position offset (meters) on Z.{note}");
+            rotX = ModConfig.BindRuntimeHand(bodyName, side + "RotX", rotDef.x, $"{sideWord} HAND MESH rotation offset (degrees) around X = the RED line.{note} Does not affect the aim/laser or the held weapon.{AxisNote}");
+            rotY = ModConfig.BindRuntimeHand(bodyName, side + "RotY", rotDef.y, $"{sideWord} HAND MESH rotation offset (degrees) around Y = the GREEN line.{note} Does not affect the aim/laser or the held weapon.{AxisNote}");
+            rotZ = ModConfig.BindRuntimeHand(bodyName, side + "RotZ", rotDef.z, $"{sideWord} HAND MESH rotation offset (degrees) around Z = the BLUE line.{note} Does not affect the aim/laser or the held weapon.{AxisNote}");
+            posX = ModConfig.BindRuntimeHand(bodyName, side + "PosX", 0f, $"{sideWord} HAND MESH position offset (meters) along X = the RED line.{note}");
+            posY = ModConfig.BindRuntimeHand(bodyName, side + "PosY", 0f, $"{sideWord} HAND MESH position offset (meters) along Y = the GREEN line.{note}");
+            posZ = ModConfig.BindRuntimeHand(bodyName, side + "PosZ", 0f, $"{sideWord} HAND MESH position offset (meters) along Z = the BLUE line.{note}");
 
             scale = ModConfig.BindRuntimeHand(bodyName, "Scale", 1f, "Scale multiplier for this character's runtime hand meshes (both hands).");
-            aimRotX = ModConfig.BindRuntimeHand(bodyName, "AimRotX", aimDef.x, "AIM/LASER rotation offset (degrees) around X. Shared by BOTH hands; does not affect the hand meshes.");
-            aimRotY = ModConfig.BindRuntimeHand(bodyName, "AimRotY", aimDef.y, "AIM/LASER rotation offset (degrees) around Y. Shared by BOTH hands; does not affect the hand meshes.");
-            aimRotZ = ModConfig.BindRuntimeHand(bodyName, "AimRotZ", aimDef.z, "AIM/LASER rotation offset (degrees) around Z. Shared by BOTH hands; does not affect the hand meshes.");
+            aimRotX = ModConfig.BindRuntimeHand(bodyName, "AimRotX", aimDef.x, "AIM/LASER rotation offset (degrees) around X = the RED line. Shared by BOTH hands; does not affect the hand meshes." + AxisNote);
+            aimRotY = ModConfig.BindRuntimeHand(bodyName, "AimRotY", aimDef.y, "AIM/LASER rotation offset (degrees) around Y = the GREEN line. Shared by BOTH hands; does not affect the hand meshes." + AxisNote);
+            aimRotZ = ModConfig.BindRuntimeHand(bodyName, "AimRotZ", aimDef.z, "AIM/LASER rotation offset (degrees) around Z = the BLUE line. Shared by BOTH hands; does not affect the hand meshes." + AxisNote);
+            Rot(bodyName, side + "Rot", rotX, rotY, rotZ, Compose(LegacyToXYZ(leftHand ? defs[0] : defs[1]).x, LegacyToXYZ(leftHand ? defs[0] : defs[1]).y, LegacyToXYZ(leftHand ? defs[0] : defs[1]).z));
+            Rot(bodyName, "AimRot", aimRotX, aimRotY, aimRotZ, BakedAimRotation(bodyName));
+            ZeroPoseEntry(bodyName);
         }
 
         /// <summary>Creates every entry for the known DLC2 survivors up front.</summary>
@@ -108,6 +317,12 @@ namespace VRMod
             // The Operator's gun hangs off a weapon bone under the left hand.
             BindWeaponEntries("DroneTechBody");
             BindWeaponEntries("FalseSonBody");
+            // Hallowed Concepts (DLC4): Enforcer's riot shotgun / shield and Acolyte's blades are
+            // held props, so give both the weapon offset entries for in-headset mapping.
+            BindWeaponEntries("Enforcer2Body", true);
+            BindWeaponEntries("Enforcer2Body", false);
+            BindWeaponEntries("AcolyteBody", true);
+            BindWeaponEntries("AcolyteBody", false);
             foreach (string bodyName in KnownRuntimeHandBodies) BodyIncludesForearm(bodyName);
         }
 
@@ -170,6 +385,14 @@ namespace VRMod
 
                 Transform model = body.modelLocator.modelTransform;
 
+                // 2.23.27: in-place transformations (Acolyte's Reaper form) keep the same body but
+                // swap the visible model. Each form gets its own config section,
+                // "<Body>_<Form>", so the transformed hands are tuned independently and the base
+                // hands come back unchanged afterwards. Temporary bodies (Shrine of Compulsion's
+                // PolymorphLemurianBody) are separate bodies and simply use their own name.
+                bodyName = FormConfigName(bodyName, model, body);
+                hiddenFormRoot = HiddenFormRoot(body);
+
                 // Each controller builds from its OWN arm - the left hand is never mirrored from
                 // the right. That is what makes characters holding a different weapon in each hand
                 // correct (Chef: cleaver on Wrist_L, pizza cutter on Wrist_R), and each hand is
@@ -209,6 +432,17 @@ namespace VRMod
                 }
 
                 HashSet<Transform> boneSet = new HashSet<Transform>(handBone.GetComponentsInChildren<Transform>(true));
+
+                // 2.23.26 sanity check: a hand never owns most of the skeleton. When the "hand"
+                // bone's subtree covers more than half the rig (IK bones parented high up), the
+                // bake would turn the whole character into a giant hand - refuse instead.
+                int skeletonCount = skeletonBones != null ? skeletonBones.Count : 0;
+                int setInSkeleton = skeletonBones != null ? boneSet.Count(b => skeletonBones.Contains(b)) : boneSet.Count;
+                if (skeletonCount > 0 && setInSkeleton > skeletonCount / 2)
+                {
+                    VRMod.StaticLogger.LogWarning($"[VR hands] Runtime hand: '{handBone.name}' on '{bodyName}' covers {setInSkeleton} of {skeletonCount} skeleton bones - that is the whole character, not a hand. Keeping default pointer.");
+                    return null;
+                }
 
                 if (BodyIncludesForearm(bodyName) && handBone.parent)
                 {
@@ -292,7 +526,23 @@ namespace VRMod
 
                 if (ModConfig.RuntimeHandsDebug.Value)
                 {
-                    try { AddAxisLines(aligned.transform, controller); }
+                    // 2.23.36: the gizmo is drawn in the frame the rotation offsets act in (it does NOT
+                    // turn with the hand), so RotX visibly turns the hand about the red line, etc.
+                    // A second gizmo sits on the held weapon's own space when there is one.
+                    try
+                    {
+                        GameObject gizmo = new GameObject("AxisGizmo");
+                        gizmo.transform.SetParent(root.transform, false);
+                        AddAxisLines(gizmo.transform, controller);
+                        alignerComp.axisGizmo = gizmo.transform;
+                        if (alignerComp.WeaponSpace)
+                        {
+                            GameObject wg = new GameObject("WeaponGizmo");
+                            wg.transform.SetParent(alignerComp.WeaponSpace, false);
+                            AddAxisLines(wg.transform, controller);
+                            alignerComp.weaponGizmo = wg.transform;
+                        }
+                    }
                     catch (Exception axisEx) { VRMod.StaticLogger.LogWarning($"[VR debug] Axis lines failed (hand mesh unaffected): {axisEx.Message}"); }
                 }
 
@@ -306,7 +556,7 @@ namespace VRMod
 
                 root.transform.SetParent(controller.transform, false);
 
-                VRMod.StaticLogger.LogInfo($"[VR hands] Runtime hand built for '{bodyName}' [{(controllerIsLeft ? "LEFT" : "RIGHT")} controller] from bone '{handBone.name}' ({boneSet.Count} bones, {rendererInfos.Count} renderer info(s) wired to the game's material pipeline){(cancelParentMirror ? ", un-mirrored" : "")}. Tune offsets in config section 'RuntimeHands (experimental)'.");
+                if (ModConfig.HandTuningEnabled || ModConfig.RuntimeHandsDebug.Value) VRMod.StaticLogger.LogInfo($"[VR hands] Runtime hand built for '{bodyName}' [{(controllerIsLeft ? "LEFT" : "RIGHT")} controller] from bone '{handBone.name}' ({boneSet.Count} bones, {rendererInfos.Count} renderer info(s) wired to the game's material pipeline){(cancelParentMirror ? ", un-mirrored" : "")}. Tune offsets in config section '{ModConfig.CharacterSection(bodyName)}'.");
 
                 return hand;
             }
@@ -328,6 +578,7 @@ namespace VRMod
             foreach (SkinnedMeshRenderer smr in model.GetComponentsInChildren<SkinnedMeshRenderer>(true))
             {
                 if (smr.GetComponentInParent<ItemDisplay>()) continue;
+                if (InHiddenForm(smr.transform)) continue;
                 if (smr.bones == null) continue;
 
                 foreach (Transform b in smr.bones)
@@ -363,10 +614,17 @@ namespace VRMod
             System.Text.RegularExpressions.Regex sideRegex = new System.Text.RegularExpressions.Regex(
                 right ? @"((\.|_|\s)?r$|(^|[._\s])r[._\s])" : @"((\.|_|\s)?l$|(^|[._\s])l[._\s])");
 
+            // 2.23.27: prefer a real hand bone over an IK helper (Lemurian: "hand_ik.r" sits high in
+            // the chain and its subtree is most of the skeleton) - IK names only as a fallback.
+            System.Text.RegularExpressions.Regex ikRegex = new System.Text.RegularExpressions.Regex(@"(^|[._\s])ik([._\s]|$)|_ik|ik_");
+            // 2.23.29: IK helpers are only tried at the very END (after wrist and finger searches):
+            // Lemurian has no hand bone at all - its hand is lower_arm.r with finger children -
+            // and "hand_ik.r" carries no mesh, which baked the whole body.
             foreach (Transform t in all)
             {
                 string lower = t.name.ToLowerInvariant().Trim();
                 if (!lower.Contains("hand") || lower.Contains("handle")) continue;
+                if (ikRegex.IsMatch(lower)) continue;
                 if (lower.Contains(right ? "right" : "left")) return t;
                 if (sideRegex.IsMatch(lower)) return t;
             }
@@ -374,12 +632,29 @@ namespace VRMod
             // 2.20.9: not every rig names the bone "hand". Chef's, for instance, goes
             // ... Elbow_R -> ElbowPart2_R -> Wrist_R -> MiddleFinger1_R / ThumbFinger1_R.
             // Try "wrist" on the correct side next.
+            // 2.23.37: a rig can have several wrists per side (Acolyte's Reaper form: a small lower
+            // arm 'arm_lower_L_wrist_jnt' with one finger, and the real hand 'arm_av_L_wrist_jnt'
+            // with four). Take the first wrist as before, unless it is a stump (< 2 finger children)
+            // and another wrist on that side has more fingers.
+            Transform firstWrist = null, bestWrist = null;
+            int firstWristFingers = 0, bestWristFingers = -1;
             foreach (Transform t in all)
             {
                 string lower = t.name.ToLowerInvariant().Trim();
                 if (!lower.Contains("wrist")) continue;
-                if (lower.Contains(right ? "right" : "left")) return LogPickedBone(t, "wrist name");
-                if (sideRegex.IsMatch(lower)) return LogPickedBone(t, "wrist name");
+                if (!lower.Contains(right ? "right" : "left") && !sideRegex.IsMatch(lower)) continue;
+                int f = 0;
+                foreach (Transform child in t) if (IsFingerName(child.name)) f++;
+                if (!firstWrist) { firstWrist = t; firstWristFingers = f; }
+                if (f > bestWristFingers) { bestWrist = t; bestWristFingers = f; }
+            }
+            if (firstWrist)
+            {
+                // 2.23.39: take the side's wrist with the MOST fingers (Reaper right: arm_lower_R
+                // has only thumb + pointer; the full hand has four).
+                if (bestWrist != firstWrist && bestWristFingers > firstWristFingers)
+                    return LogPickedBone(bestWrist, $"wrist name, {bestWristFingers} finger(s) (skipped '{firstWrist.name}' with {firstWristFingers})");
+                return LogPickedBone(firstWrist, "wrist name");
             }
 
             // Last resort, and the most rig-agnostic: the hand is whatever bone has the most
@@ -408,6 +683,13 @@ namespace VRMod
             }
 
             if (bestBone) return LogPickedBone(bestBone, $"{bestFingers} finger child bone(s)");
+
+            foreach (Transform t in all)
+            {
+                string lower = t.name.ToLowerInvariant().Trim();
+                if (!lower.Contains("hand") || lower.Contains("handle")) continue;
+                if (lower.Contains(right ? "right" : "left") || sideRegex.IsMatch(lower)) return LogPickedBone(t, "IK helper name (last resort)");
+            }
 
             return null;
         }
@@ -479,6 +761,44 @@ namespace VRMod
             return n.StartsWith("weapon") || n.Contains("_weapon") || n.Contains("weapon_");
         }
 
+        // 2.23.25: held props whose rig does not use the word "weapon" (Enforcer's shield and riot
+        // shotgun, Acolyte's blades). Used ONLY to decide which parts follow the tunable weapon
+        // offsets - the bind-pose pinning above still keys on IsWeaponBone, so existing hands
+        // (Operator, False Son) bake exactly as before.
+        private static readonly string[] heldPropWords = { "weapon", "gun", "shotgun", "rifle", "pistol", "shield", "blade", "sword", "knife", "javelin", "cleaver", "club", "hammer" };
+
+        internal static bool IsHeldPropName(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return false;
+            string n = name.ToLowerInvariant();
+            foreach (string w in heldPropWords) if (n.Contains(w)) return true;
+            return false;
+        }
+
+        private static bool IsHeldPropBone(Transform t) => t && (IsWeaponBone(t) || IsHeldPropName(t.name));
+
+        private static Transform GetWeaponRoot(GameObject container)
+        {
+            Transform weaponRoot = container.transform.Find("WeaponRoot");
+            if (!weaponRoot)
+            {
+                weaponRoot = new GameObject("WeaponRoot").transform;
+                weaponRoot.SetParent(container.transform, false);
+            }
+            return weaponRoot;
+        }
+
+        /// <summary>Bodies whose two hands hold DIFFERENT props (Enforcer: shield right, shotgun
+        /// left), so each hand gets its own LeftWeapon* / RightWeapon* entries.</summary>
+        internal static readonly HashSet<string> perSideWeaponBodies = new HashSet<string> { "Enforcer2Body", "AcolyteBody" };
+
+        /// <summary>True for a per-side body and for its forms ("AcolyteBody_Reaper").</summary>
+        internal static bool IsPerSideWeaponBody(string name)
+        {
+            foreach (string b in perSideWeaponBodies) if (name == b || name.StartsWith(b + "_")) return true;
+            return false;
+        }
+
         /// <summary>
         /// Per-character weapon offset (metres / degrees) applied to "weapon*" bones that hang off
         /// the hand bone but whose rest position is nowhere near the hand - the Operator's gun bone
@@ -494,22 +814,50 @@ namespace VRMod
             { "FalseSonBody",  new[] { 0f, 0f, 0f, -5f, 10f, 20f } },
         };
 
+        /// <summary>"Weapon" for bodies with one shared set, "LeftWeapon"/"RightWeapon" for perSideWeaponBodies.</summary>
+        internal static string WeaponKeyPrefix(string bodyName, bool leftHand) =>
+            IsPerSideWeaponBody(bodyName) ? (leftHand ? "LeftWeapon" : "RightWeapon") : "Weapon";
+
+        internal static BepInEx.Configuration.ConfigEntry<float>[] BindWeaponEntries(string bodyName, bool leftHand)
+        {
+            if (!IsPerSideWeaponBody(bodyName)) return BindWeaponEntries(bodyName);
+            string prefix = WeaponKeyPrefix(bodyName, leftHand);
+            string key = bodyName + "/" + prefix;
+            BepInEx.Configuration.ConfigEntry<float>[] e;
+            if (weaponEntries.TryGetValue(key, out e)) return e;
+            string sideWord = leftHand ? "LEFT" : "RIGHT";
+            e = new[]
+            {
+                ModConfig.BindRuntimeHand(bodyName, prefix + "PosX", 0f, $"{sideWord}-hand held WEAPON/prop position offset (metres) along X (RED), relative to its default pose. Moves only the prop (e.g. Enforcer's shield or shotgun), not the hand."),
+                ModConfig.BindRuntimeHand(bodyName, prefix + "PosY", 0f, $"{sideWord}-hand held WEAPON/prop position offset (metres) along Y (GREEN)."),
+                ModConfig.BindRuntimeHand(bodyName, prefix + "PosZ", 0f, $"{sideWord}-hand held WEAPON/prop position offset (metres) along Z (BLUE)."),
+                ModConfig.BindRuntimeHand(bodyName, prefix + "RotX", 0f, $"{sideWord}-hand held WEAPON/prop rotation offset (degrees) around X (RED), relative to the weapon's default pose. Independent of the hand offsets." + AxisNote),
+                ModConfig.BindRuntimeHand(bodyName, prefix + "RotY", 0f, $"{sideWord}-hand held WEAPON/prop rotation offset (degrees) around Y (GREEN), relative to the weapon's default pose. Independent of the hand offsets." + AxisNote),
+                ModConfig.BindRuntimeHand(bodyName, prefix + "RotZ", 0f, $"{sideWord}-hand held WEAPON/prop rotation offset (degrees) around Z (BLUE), relative to the weapon's default pose. Independent of the hand offsets." + AxisNote),
+            };
+            weaponEntries[key] = e;
+            Rot(bodyName, prefix + "Rot", e[3], e[4], e[5], Quaternion.identity);
+            return e;
+        }
+
         internal static BepInEx.Configuration.ConfigEntry<float>[] BindWeaponEntries(string bodyName)
         {
             BepInEx.Configuration.ConfigEntry<float>[] e;
             if (weaponEntries.TryGetValue(bodyName, out e)) return e;
             float[] w;
             if (!weaponDefaults.TryGetValue(bodyName, out w)) w = new float[6];
+            else w = new[] { w[0], w[1], w[2], 0f, 0f, 0f }; // 2.23.38: rotation lives in WeaponRotBase
             e = new[]
             {
-                ModConfig.BindRuntimeHand(bodyName, "WeaponPosX", w[0], "Held WEAPON position offset (metres) on X, relative to the hand bone. Only used when the rig parents a 'weapon' bone to the hand (Operator's gun)."),
-                ModConfig.BindRuntimeHand(bodyName, "WeaponPosY", w[1], "Held WEAPON position offset (metres) on Y, relative to the hand bone."),
-                ModConfig.BindRuntimeHand(bodyName, "WeaponPosZ", w[2], "Held WEAPON position offset (metres) on Z, relative to the hand bone."),
-                ModConfig.BindRuntimeHand(bodyName, "WeaponRotX", w[3], "Held WEAPON rotation offset (degrees) around X, relative to the hand bone."),
-                ModConfig.BindRuntimeHand(bodyName, "WeaponRotY", w[4], "Held WEAPON rotation offset (degrees) around Y, relative to the hand bone."),
-                ModConfig.BindRuntimeHand(bodyName, "WeaponRotZ", w[5], "Held WEAPON rotation offset (degrees) around Z, relative to the hand bone."),
+                ModConfig.BindRuntimeHand(bodyName, "WeaponPosX", w[0], "Held WEAPON position offset (metres) along X (RED). Only used when the rig parents a 'weapon' bone to the hand (Operator's gun)."),
+                ModConfig.BindRuntimeHand(bodyName, "WeaponPosY", w[1], "Held WEAPON position offset (metres) along Y (GREEN)."),
+                ModConfig.BindRuntimeHand(bodyName, "WeaponPosZ", w[2], "Held WEAPON position offset (metres) along Z (BLUE)."),
+                ModConfig.BindRuntimeHand(bodyName, "WeaponRotX", w[3], "Held WEAPON rotation offset (degrees) around X (RED), relative to the weapon's default pose. Independent of the hand offsets." + AxisNote),
+                ModConfig.BindRuntimeHand(bodyName, "WeaponRotY", w[4], "Held WEAPON rotation offset (degrees) around Y (GREEN), relative to the weapon's default pose. Independent of the hand offsets." + AxisNote),
+                ModConfig.BindRuntimeHand(bodyName, "WeaponRotZ", w[5], "Held WEAPON rotation offset (degrees) around Z (BLUE), relative to the weapon's default pose. Independent of the hand offsets." + AxisNote),
             };
             weaponEntries[bodyName] = e;
+            Rot(bodyName, "WeaponRot", e[3], e[4], e[5], BakedWeaponRotation(bodyName));
             return e;
         }
 
@@ -658,6 +1006,7 @@ namespace VRMod
             foreach (SkinnedMeshRenderer smr in renderers)
             {
                 if (ItemDisplayHider.ShouldHide(charModel, smr.transform)) continue;
+                if (InHiddenForm(smr.transform)) continue;
                 if (!smr.sharedMesh)
                 {
                     // RoR2 applies skins asynchronously - at spawn time the mesh may not be
@@ -723,7 +1072,7 @@ namespace VRMod
 
                 // Per-vertex weight on the hand bone set (and how much of it is on weapon bones).
                 bool[] boneIsWeapon = new bool[bones.Length];
-                for (int i = 0; i < bones.Length; i++) boneIsWeapon[i] = boneInSet[i] && bones[i] && IsWeaponBone(bones[i]);
+                for (int i = 0; i < bones.Length; i++) boneIsWeapon[i] = boneInSet[i] && bones[i] && IsHeldPropBone(bones[i]);
 
                 float[] setWeight = new float[weights.Length];
                 float weaponWeightTotal = 0f, setWeightTotal = 0f;
@@ -741,7 +1090,7 @@ namespace VRMod
                 }
                 // A renderer that is mostly skinned to weapon bones is the held weapon: it goes
                 // under a separate WeaponRoot so its offsets can be tuned live and independently.
-                bool isWeaponPart = setWeightTotal > 0f && weaponWeightTotal / setWeightTotal > 0.5f;
+                bool isWeaponPart = setWeightTotal > 0f && (weaponWeightTotal / setWeightTotal > 0.5f || IsHeldPropName(smr.name));
 
                 // Bake with the hand subtree in its bind pose so every bake (spawn, stage change,
                 // item pickup) produces the same geometry, then put the live pose back.
@@ -821,15 +1170,10 @@ namespace VRMod
                 Transform partParent = container.transform;
                 if (isWeaponPart)
                 {
-                    Transform weaponRoot = container.transform.Find("WeaponRoot");
-                    if (!weaponRoot)
-                    {
-                        weaponRoot = new GameObject("WeaponRoot").transform;
-                        weaponRoot.SetParent(container.transform, false);
-                    }
-                    partParent = weaponRoot;
-                    if (debug) VRMod.StaticLogger.LogInfo($"[VR debug] '{smr.name}' is a held WEAPON part ({weaponWeightTotal / setWeightTotal:P0} of its hand weight is on weapon bones) - tune it with '{bodyName}_Weapon*'.");
+                    partParent = GetWeaponRoot(container);
+                    if (debug) VRMod.StaticLogger.LogInfo($"[VR debug] '{smr.name}' is a held WEAPON part ({weaponWeightTotal / setWeightTotal:P0} of its hand weight is on prop bones) - tune it with '{bodyName}_{(IsPerSideWeaponBody(bodyName) ? "<Left|Right>Weapon" : "Weapon")}*'.");
                 }
+                else if (debug) VRMod.StaticLogger.LogInfo($"[VR debug] '{smr.name}' baked as part of the HAND (not a weapon; {(setWeightTotal > 0f ? weaponWeightTotal / setWeightTotal : 0f):P0} of its weight on prop bones).");
 
                 GameObject part = new GameObject(smr.name);
                 part.transform.SetParent(partParent, false);
@@ -860,6 +1204,7 @@ namespace VRMod
 
             foreach (MeshFilter mf in model.GetComponentsInChildren<MeshFilter>(true))
             {
+                if (InHiddenForm(mf.transform)) continue;
                 if (!mf.sharedMesh) continue;
 
                 MeshRenderer sourceMr = mf.GetComponent<MeshRenderer>();
@@ -871,10 +1216,12 @@ namespace VRMod
                 Transform t = mf.transform.parent;
                 Transform chainHand = null;
                 bool underHand = false;
+                bool rigidIsProp = IsHeldPropName(mf.name);
                 while (t && t != model.parent)
                 {
                     if (subtreeNames.Contains(t.name)) underHand = true;
                     if (t.name == handBone.name) { chainHand = t; break; }
+                    if (IsHeldPropBone(t)) rigidIsProp = true;
                     t = t.parent;
                 }
 
@@ -885,7 +1232,9 @@ namespace VRMod
                 if (!container) container = new GameObject("Mesh");
 
                 GameObject part = new GameObject(mf.name + "_rigid");
-                part.transform.SetParent(container.transform, false);
+                // Held props go under WeaponRoot (pose captured relative to the hand space first,
+                // WeaponRoot itself sits at the hand origin until the offsets move it).
+                part.transform.SetParent(rigidIsProp ? GetWeaponRoot(container) : container.transform, false);
                 // Grip position relative to the hand in the BIND pose (a prop hanging off a finger
                 // bone would otherwise move with the finger curl of the frame we baked on).
                 List<BoneSnapshot> rigidSnapshot = PoseSubtreeToBind(model, space);
@@ -916,7 +1265,7 @@ namespace VRMod
 
                 if (debug)
                 {
-                    VRMod.StaticLogger.LogInfo($"[VR debug] rigid mesh '{mf.name}' captured under hand chain (space: {space.name}).");
+                    VRMod.StaticLogger.LogInfo($"[VR debug] rigid mesh '{mf.name}' captured under hand chain (space: {space.name}) as {(rigidIsProp ? "a held WEAPON part" : "part of the HAND")}.");
                 }
             }
 
@@ -1054,9 +1403,9 @@ namespace VRMod
             lr.useWorldSpace = false;
             lr.positionCount = 2;
             lr.SetPosition(0, Vector3.zero);
-            lr.SetPosition(1, dir * 0.08f);
-            lr.startWidth = 0.004f;
-            lr.endWidth = 0.001f;
+            lr.SetPosition(1, dir * 0.32f);   // 2.23.38: doubled again (2.23.33: 0.16)
+            lr.startWidth = 0.016f;
+            lr.endWidth = 0.004f;
             Material mat = new Material(baseMat);
             mat.color = color;
             lr.material = mat;
@@ -1272,6 +1621,73 @@ namespace VRMod
         private BepInEx.Configuration.ConfigEntry<float> aimRotX, aimRotY, aimRotZ;
         private BepInEx.Configuration.ConfigEntry<float>[] weapon;
         private Transform weaponRoot;
+        // 2.23.34: the held weapon/prop lives in its own space beside the hand mesh, posed like the
+        // hand at its DEFAULT offsets, so tuning the hand's Rot/Pos/Scale no longer drags it along.
+        private Transform weaponSpace;
+        internal Transform WeaponSpace => weaponSpace;
+        // 2.23.37: Enforcer's shield is only shown while it is in use (Protect and Serve, shield
+        // dash, kinetic shield) - any held-prop renderer whose name contains "shield".
+        private List<MeshRenderer> shieldRenderers;
+        private static readonly List<MeshRenderer> allShieldRenderers = new List<MeshRenderer>();
+
+        /// <summary>
+        /// 2.23.42: "Enforcer: Shield opacity". 2.23.41 used the game shader's _Fade, which only
+        /// dithers (solid or nearly gone, nothing in between). Below 100 % the shield now draws
+        /// with a real alpha-blended material: a copy using the always-present "UI/Default"
+        /// shader (unlit, depth-tested, both faces) carrying the shield's own texture and colour.
+        /// Re-applied right after the character model writes the hand materials each frame.
+        /// </summary>
+        internal static void ApplyShieldOpacity()
+        {
+            if (allShieldRenderers.Count == 0) return;
+            float a = Mathf.Clamp01(ModConfig.EnforcerShieldOpacity.Value / 100f);
+            if (a >= 0.999f)
+            {
+                // 100 %: the game's own material, restored if our copy is still on.
+                foreach (var kv in transparentCopies)
+                    if (kv.Key && kv.Key.sharedMaterial == kv.Value && transparentSource[kv.Key]) kv.Key.sharedMaterial = transparentSource[kv.Key];
+                return;
+            }
+            foreach (MeshRenderer r in allShieldRenderers)
+            {
+                if (!r) continue;
+                Material src = r.sharedMaterial;
+                if (!src) continue;
+                transparentCopies.TryGetValue(r, out Material t);
+                if (src != t)
+                {
+                    // The game re-assigned its own material this frame: (re)build our copy if the
+                    // source changed, otherwise reuse it.
+                    if (!t || transparentSource[r] != src)
+                    {
+                        // 2.23.43: Shader.Find("UI/Default") returned null in 2.23.42 (the slider then did
+                        // nothing between 1 and 99 %). The UI's default canvas material always has it.
+                        Shader ui = Canvas.GetDefaultCanvasMaterial() ? Canvas.GetDefaultCanvasMaterial().shader : null;
+                        if (!ui) ui = Shader.Find("UI/Default");
+                        if (!ui) { if (!shieldLogged) { shieldLogged = true; VRMod.StaticLogger.LogWarning("[VR shield] no alpha-blended shader available - opacity slider cannot fade the shield."); } return; }
+                        if (t) UnityEngine.Object.Destroy(t);
+                        t = new Material(ui) { name = src.name + " (VR transparent)" };
+                        if (src.HasProperty("_MainTex")) t.mainTexture = src.mainTexture;
+                        t.SetInt("unity_GUIZTestMode", (int)UnityEngine.Rendering.CompareFunction.LessEqual);
+                        t.renderQueue = 3000;
+                        transparentCopies[r] = t;
+                        transparentSource[r] = src;
+                    }
+                }
+                Color c = transparentSource[r] && transparentSource[r].HasProperty("_Color") ? transparentSource[r].color : Color.white;
+                c.a = a;
+                t.color = c;
+                if (r.sharedMaterial != t) r.sharedMaterial = t;
+            }
+        }
+
+        private static bool shieldLogged;
+        private static readonly Dictionary<MeshRenderer, Material> transparentCopies = new Dictionary<MeshRenderer, Material>();
+        private static readonly Dictionary<MeshRenderer, Material> transparentSource = new Dictionary<MeshRenderer, Material>();
+        internal Transform axisGizmo;
+        internal Transform weaponGizmo;
+        private RuntimeHands.RotEntry handRot, aimRot, weaponRot;
+        private Quaternion bakedHand;
         private float nextReload;
         private float nextWatchdog;
         // Drifter's scavenging changes item counts several times a second; one re-bake per
@@ -1281,6 +1697,23 @@ namespace VRMod
         private bool forearmAtBuild;
         private bool rebuildRequested;
 
+        /// <summary>True while any of the body's state machines is in a shield state (Enforcer).</summary>
+        private static bool IsShielding(CharacterBody body)
+        {
+            if (!body) return false;
+            foreach (EntityStateMachine m in body.GetComponents<EntityStateMachine>())
+            {
+                if (m == null || m.state == null) continue;
+                string n = m.state.GetType().Name;
+                if (n.IndexOf("Shield", StringComparison.Ordinal) >= 0 && !n.StartsWith("NotIn") && !n.Contains("Unshield"))
+                    return true;
+            }
+            return false;
+        }
+
+        /// <summary>Hand mesh rotation offset from its three config angles.</summary>
+        internal static Quaternion HandRotation(float x, float y, float z) => RuntimeHands.Compose(x, y, z);
+
         internal void BindConfig()
         {
             RuntimeHands.BindHandEntries(bodyName, isLeftHand,
@@ -1288,15 +1721,36 @@ namespace VRMod
                 out aimRotX, out aimRotY, out aimRotZ);
 
             string side = isLeftHand ? "Left" : "Right";
-            VRMod.StaticLogger.LogInfo($"[VR hands] '{bodyName}' {side.ToUpperInvariant()} hand offsets: Rot({rotX.Value:F0}, {rotY.Value:F0}, {rotZ.Value:F0}) Pos({posX.Value:F2}, {posY.Value:F2}, {posZ.Value:F2}) Scale {scale.Value:F2} | Aim({aimRotX.Value:F0}, {aimRotY.Value:F0}, {aimRotZ.Value:F0}, shared by both hands). Edit '{bodyName}_{side}*' in the config to tune this hand.");
+            handRot = RuntimeHands.Rot(bodyName, side + "Rot", rotX, rotY, rotZ, RuntimeHands.BakedHandRotation(bodyName, isLeftHand));
+            aimRot = RuntimeHands.Rot(bodyName, "AimRot", aimRotX, aimRotY, aimRotZ, RuntimeHands.BakedAimRotation(bodyName));
+            bakedHand = RuntimeHands.BakedHandRotation(bodyName, isLeftHand);
+            if (ModConfig.HandTuningEnabled || ModConfig.RuntimeHandsDebug.Value) VRMod.StaticLogger.LogInfo($"[VR hands] '{bodyName}' {side.ToUpperInvariant()} hand offsets: Rot({rotX.Value:F0}, {rotY.Value:F0}, {rotZ.Value:F0}) Pos({posX.Value:F2}, {posY.Value:F2}, {posZ.Value:F2}) Scale {scale.Value:F2} | Aim({aimRotX.Value:F0}, {aimRotY.Value:F0}, {aimRotZ.Value:F0}, shared by both hands). Edit '{bodyName}_{side}*' in the config to tune this hand.");
 
             forearmAtBuild = RuntimeHands.BodyIncludesForearm(bodyName);
 
             weaponRoot = transform.Find("Mesh/WeaponRoot");
+            if (!weaponRoot)
+                VRMod.StaticLogger.LogInfo($"[VR hands] '{bodyName}' {side.ToUpperInvariant()} hand has NO held weapon part - '{bodyName}_{RuntimeHands.WeaponKeyPrefix(bodyName, isLeftHand)}*' has nothing to move on this hand. Turn on RuntimeHandsDebug to see how each mesh was classified.");
             if (weaponRoot)
             {
-                weapon = RuntimeHands.BindWeaponEntries(bodyName);
-                VRMod.StaticLogger.LogInfo($"[VR hands] '{bodyName}' {side.ToUpperInvariant()} hand carries a weapon part: offsets Pos({weapon[0].Value:F2}, {weapon[1].Value:F2}, {weapon[2].Value:F2}) Rot({weapon[3].Value:F0}, {weapon[4].Value:F0}, {weapon[5].Value:F0}). Edit '{bodyName}_Weapon*' in the config (edits apply within 3 s while in game).");
+                weaponSpace = new GameObject("WeaponSpace").transform;
+                weaponSpace.SetParent(transform.parent, false);
+                weaponRoot.SetParent(weaponSpace, false);
+                weapon = RuntimeHands.BindWeaponEntries(bodyName, isLeftHand);
+                weaponRot = RuntimeHands.Rot(bodyName, RuntimeHands.WeaponKeyPrefix(bodyName, isLeftHand) + "Rot", weapon[3], weapon[4], weapon[5], Quaternion.identity);
+                if (bodyName == "Enforcer2Body")
+                {
+                    shieldRenderers = new List<MeshRenderer>();
+                    allShieldRenderers.RemoveAll(r => !r);
+                    var names = new System.Text.StringBuilder();
+                    foreach (MeshRenderer r in weaponSpace.GetComponentsInChildren<MeshRenderer>(true))
+                    {
+                        names.Append(r.name).Append(' ');
+                        if (r.name.ToLowerInvariant().Contains("shield")) { shieldRenderers.Add(r); allShieldRenderers.Add(r); }
+                    }
+                    VRMod.StaticLogger.LogInfo($"[VR hands] Enforcer {side.ToUpperInvariant()} held parts: {names}- {shieldRenderers.Count} shield part(s) shown only while shielding.");
+                }
+                if (ModConfig.HandTuningEnabled || ModConfig.RuntimeHandsDebug.Value) VRMod.StaticLogger.LogInfo($"[VR hands] '{bodyName}' {side.ToUpperInvariant()} hand carries a weapon part: offsets Pos({weapon[0].Value:F2}, {weapon[1].Value:F2}, {weapon[2].Value:F2}) Rot({weapon[3].Value:F0}, {weapon[4].Value:F0}, {weapon[5].Value:F0}). Edit '{bodyName}_{RuntimeHands.WeaponKeyPrefix(bodyName, isLeftHand)}*' in the config (edits apply within 5 s while in game).");
             }
         }
 
@@ -1310,7 +1764,7 @@ namespace VRMod
             HandController owner = GetComponentInParent<HandController>();
             bool inUi = owner && owner.uiMode;
 
-            MeshRenderer[] renderers = GetComponentsInChildren<MeshRenderer>(true);
+            MeshRenderer[] renderers = (transform.parent ? transform.parent : transform).GetComponentsInChildren<MeshRenderer>(true); // 2.23.34: includes WeaponSpace
             int repaired = 0;
 
             foreach (MeshRenderer r in renderers)
@@ -1321,6 +1775,7 @@ namespace VRMod
                 // is launched from the claw) is meant to be hidden - leave it alone.
                 RuntimeHandPartMirror mirror = r.GetComponent<RuntimeHandPartMirror>();
                 if (mirror && mirror.sourceHidden) continue;
+                if (shieldRenderers != null && shieldRenderers.Contains(r)) continue; // shown only while shielding
 
                 if (!r.enabled) { r.enabled = true; repaired++; }
                 if (!r.gameObject.activeSelf) { r.gameObject.SetActive(true); repaired++; }
@@ -1355,6 +1810,12 @@ namespace VRMod
             }
         }
 
+        private void LateUpdate()
+        {
+            // 2.23.43: also apply here in case the character model's material pass doesn't run.
+            if (shieldRenderers != null && shieldRenderers.Count > 0) ApplyShieldOpacity();
+        }
+
         private void Update()
         {
             if (rotX == null) return;
@@ -1365,8 +1826,15 @@ namespace VRMod
             // mirrored from the other hand.
             Quaternion cancel = Quaternion.Inverse(HandController.PoseCorrection);
 
-            transform.localRotation = cancel * Quaternion.Euler(rotX.Value, rotY.Value, rotZ.Value) * autoAlign;
-            transform.localPosition = new Vector3(posX.Value, posY.Value, posZ.Value);
+            transform.localRotation = cancel * handRot.Value * autoAlign;
+            // 2.23.36: position offsets move along the gizmo's red/green/blue lines (cancel frame).
+            transform.localPosition = cancel * new Vector3(posX.Value, posY.Value, posZ.Value);
+            if (axisGizmo)
+            {
+                // Zero-pose frame: X turns about this red line from the stored pose.
+                axisGizmo.localRotation = cancel * handRot.Base;
+                axisGizmo.localPosition = transform.localPosition;
+            }
 
             // The left HandController root carries a negative X scale (it exists to mirror the
             // authored right-arm hand models). A hand baked from the left arm is already correct,
@@ -1377,22 +1845,46 @@ namespace VRMod
 
             if (aimRoot)
             {
-                aimRoot.localRotation = cancel * Quaternion.Euler(aimRotX.Value, aimRotY.Value, aimRotZ.Value);
+                aimRoot.localRotation = cancel * aimRot.Value;
+            }
+
+            if (shieldRenderers != null && shieldRenderers.Count > 0)
+            {
+                // 2.23.41: "Enforcer: Shield opacity" (VR settings) - 0 hides it completely.
+                bool show = IsShielding(MotionControls.currentBody) && ModConfig.EnforcerShieldOpacity.Value > 0;
+                foreach (MeshRenderer r in shieldRenderers) if (r && r.enabled != show) r.enabled = show;
+            }
+
+            if (weaponSpace)
+            {
+                float ds = Mathf.Clamp((float)scale.DefaultValue, 0.05f, 5f);
+                weaponSpace.localRotation = cancel * bakedHand * autoAlign;
+                weaponSpace.localPosition = cancel * new Vector3((float)posX.DefaultValue, (float)posY.DefaultValue, (float)posZ.DefaultValue);
+                weaponSpace.localScale = new Vector3(mirrorMesh ? -ds : ds, ds, ds);
             }
 
             if (weaponRoot && weapon != null)
             {
                 weaponRoot.localPosition = new Vector3(weapon[0].Value, weapon[1].Value, weapon[2].Value);
-                weaponRoot.localRotation = Quaternion.Euler(weapon[3].Value, weapon[4].Value, weapon[5].Value);
+                weaponRoot.localRotation = weaponRot != null ? weaponRot.Value : RuntimeHands.Compose(weapon[3].Value, weapon[4].Value, weapon[5].Value);
+                if (weaponGizmo)
+                {
+                    // 2.23.38: drawn AT the weapon's pivot (it was at the hand, up to a metre away).
+                    weaponGizmo.localPosition = weaponRoot.localPosition;
+                    weaponGizmo.localRotation = weaponRot != null ? weaponRot.Base : Quaternion.identity;
+                }
             }
 
-            // Live tuning: pick up edits to the config file every 3 s (always, not just in debug
+            // Live tuning: pick up edits to the config file every 5 s (2.23.33, was 3 s) (always, not just in debug
             // mode) so aim / hand / weapon offsets can be adjusted without restarting the game.
             if (Time.unscaledTime >= nextReload)
             {
-                nextReload = Time.unscaledTime + 3f;
+                nextReload = Time.unscaledTime + 5f;
                 if (ModConfig.ReloadRuntimeHandConfig())
-                    VRMod.StaticLogger.LogInfo($"[VR hands] Config reloaded: '{bodyName}' {(isLeftHand ? "LEFT" : "RIGHT")} Rot({rotX.Value:F0}, {rotY.Value:F0}, {rotZ.Value:F0}) Pos({posX.Value:F2}, {posY.Value:F2}, {posZ.Value:F2}) Aim({aimRotX.Value:F0}, {aimRotY.Value:F0}, {aimRotZ.Value:F0}){(weapon != null ? $" Weapon Pos({weapon[0].Value:F2}, {weapon[1].Value:F2}, {weapon[2].Value:F2}) Rot({weapon[3].Value:F0}, {weapon[4].Value:F0}, {weapon[5].Value:F0})" : "")}.");
+                {
+                    RuntimeHands.ProcessZeroPose(bodyName);
+                    if (ModConfig.HandTuningEnabled || ModConfig.RuntimeHandsDebug.Value) VRMod.StaticLogger.LogInfo($"[VR hands] Config reloaded: '{bodyName}' {(isLeftHand ? "LEFT" : "RIGHT")} Rot({rotX.Value:F0}, {rotY.Value:F0}, {rotZ.Value:F0}) Pos({posX.Value:F2}, {posY.Value:F2}, {posZ.Value:F2}) Aim({aimRotX.Value:F0}, {aimRotY.Value:F0}, {aimRotZ.Value:F0}){(weapon != null ? $" Weapon Pos({weapon[0].Value:F2}, {weapon[1].Value:F2}, {weapon[2].Value:F2}) Rot({weapon[3].Value:F0}, {weapon[4].Value:F0}, {weapon[5].Value:F0})" : "")}.");
+                }
             }
 
             // Watchdog: a stage change (e.g. entering the Bazaar) destroys the character model

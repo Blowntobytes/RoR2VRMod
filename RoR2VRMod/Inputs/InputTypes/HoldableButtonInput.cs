@@ -1,4 +1,4 @@
-﻿using Rewired;
+using Rewired;
 using UnityEngine;
 using UnityEngine.XR;
 using UnityEngine.XR.Interaction.Toolkit;
@@ -10,7 +10,7 @@ namespace VRMod.Inputs
         private float holdablePressTime;
         private bool prevHoldableValue;
 
-        internal HoldableButtonInput(XRNode deviceNode, InputHelpers.Button button, int buttonID) : base(deviceNode, button, buttonID) { }
+        internal HoldableButtonInput(XRNode deviceNode, InputHelpers.Button button, int buttonID, ViveOverride viveOverride = ViveOverride.None) : base(deviceNode, button, buttonID, viveOverride) { }
 
         internal override void UpdateValues(CustomController vrController)
         {

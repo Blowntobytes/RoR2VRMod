@@ -2,6 +2,35 @@
 
 This package continues [DrBibop's RoR2VRMod](https://github.com/DrBibop/RoR2VRMod) (MIT), whose own history ends at 2.9.2; its original changelog is kept in the source repository as `CHANGELOG-original-DrBibop.md`. Version numbers restart at 1.0.x for this package.
 
+### 1.0.5
+
+**New**
+- Updated for the October 2026 game update (Hallowed Concepts): rebuilt against the new game code, HUD, wrist panels, scoreboard and character select work again, and the bundled OpenXR/Input System libraries no longer spam errors.
+- VR hands for the new survivors **Enforcer** and **Acolyte**, built from the characters' own arms, with their held weapons. Enforcer's shield only appears while you are shielding.
+- Enforcer: triggers and grips are swapped left/right (shotgun on the left, shield on the right). New setting `[Survivor Settings] Enforcer: Shield opacity` (0-100 %, 0 = invisible), also in the in-game VR settings.
+- Transformations: Acolyte's Reaper form and the Shrine of Compulsion Lemurian get their own hands and a first-person view scaled to the form's size, using the game's own camera height.
+- Key items: hold the left grip and press A to use the key item; hold the left grip and flick the right stick left/right to change element. A wrist panel shows the key item and what the buttons do.
+- Y button: tap for the pause menu, hold for the scoreboard.
+- HTC Vive and original Windows Mixed Reality wand controls (DrBibop's SteamVR layout: right pad up = jump, right pad down = interact), including the VR keyboard on trackpad wands.
+- Steam Frame controller support.
+- All runtime hand, aim and weapon positions for Seekers of the Storm, Alloyed Collective and Hallowed Concepts survivors are tuned and built in.
+
+**Fixed**
+- Eclipse, Simulacrum, Prismatic Trials and Scavenger Bingo menus showed only the background in VR; their buttons are visible and usable again.
+- Character select: the left trigger switches to the survivor grid again after the game update; the sprint icon is found again in the new HUD.
+- The intro "skip" prompt is moved into view instead of being cut off at the edge.
+- Key item button prompts no longer show as "unmapped".
+- A temporary body (Shrine of Compulsion polymorph) no longer bakes the whole creature onto your controllers.
+- A recurring hitch while playing, caused by the config file being re-read too often.
+- Changing a VR setting in the in-run pause menu could leave the character unable to move afterwards: the stick could carry the menu selection onto a HUD control (the key item slot), and a selected control keeps the game in menu mode. HUD controls are no longer reachable by stick navigation, and a leftover selection is cleared when the menu closes.
+
+**Changed**
+- The per-character hand, aim and weapon settings and the `RuntimeHands (experimental)` section are removed from `VRMod.cfg`; their values are built into the mod and players can no longer adjust them. Old entries are cleaned out of existing config files automatically.
+- Dependencies: BepInExPack 5.4.2122 (which installs RoR2BepInExPack, FixPluginTypesSerialization and BepInEx GUI) and HookGenPatcher.
+
+**Known issue**
+- The loading screen can wait at 0 % for about 20 seconds on the current game build. This is caused by the FixPluginTypesSerialization dependency and also happens with this mod disabled.
+
 ### 1.0.4
 
 **New**

@@ -9,7 +9,7 @@ This is an unofficial, community-maintained rebuild of [DrBibop's RoR2VRMod](htt
 
 **With r2modman / Thunderstore Mod Manager (recommended):** install it from Thunderstore with the "Install with Mod Manager" button, then start the game with "Start modded". If you previously imported a pre-release zip of this mod as a local mod (or still have DrBibop's original VRMod installed), uninstall that entry first — two copies of the mod must never be installed together.
 
-**[Manual install]**  Install [BepInEx](https://thunderstore.io/package/bbepis/BepInExPack/) and [HookGenPatcher](https://thunderstore.io/package/RiskofThunder/HookGenPatcher/). Then download the [Latest zip](https://github.com/Blowntobytes/RoR2VRMod/releases/latest) — on that page, open **Assets** and click `Blowntobytes-Resurrected_VRMod-<version>.zip`. Do not use GitHub's green "Code" button; that gives you the source code, not the mod.
+**[Manual install]**  Install [BepInExPack](https://thunderstore.io/package/bbepis/BepInExPack/) (which brings RoR2BepInExPack, FixPluginTypesSerialization and BepInEx GUI with it) and [HookGenPatcher](https://thunderstore.io/package/RiskofThunder/HookGenPatcher/). Then download the [Latest zip](https://github.com/Blowntobytes/RoR2VRMod/releases/latest) — on that page, open **Assets** and click `Blowntobytes-Resurrected_VRMod-<version>.zip`. Do not use GitHub's green "Code" button; that gives you the source code, not the mod.
 
 Then in r2modman / Thunderstore Mod Manager: Select *Settings → Profile → Import local mod* → select the zip in Downloads → *Import local mod* and start the game with **Start modded**.
 
@@ -28,7 +28,7 @@ Only VR players need the mod. You can play with vanilla (non-VR) players.
 
 - Risk of Rain 2 (current Steam build).
 - A PC VR headset with an **OpenXR** runtime: SteamVR (any SteamVR headset, Index, Vive, Pico/Quest via Steam Link, Virtual Desktop, ALVR), the Meta/Oculus PC runtime (Quest Link / Air Link), or Windows Mixed Reality.
-- [BepInExPack](https://thunderstore.io/package/bbepis/BepInExPack/) and [HookGenPatcher](https://thunderstore.io/package/RiskofThunder/HookGenPatcher/) (the mod manager installs these for you).
+- [BepInExPack](https://thunderstore.io/package/bbepis/BepInExPack/) with its own dependencies ([RoR2BepInExPack](https://thunderstore.io/package/RiskofThunder/RoR2BepInExPack/), [FixPluginTypesSerialization](https://thunderstore.io/package/RiskofThunder/FixPluginTypesSerialization/), BepInEx GUI) and [HookGenPatcher](https://thunderstore.io/package/RiskofThunder/HookGenPatcher/). The mod manager installs all of these for you. FixPluginTypesSerialization is required: without it the game starts in flat screen.
 
 ### Which headsets work, and the one setting that matters
 
@@ -98,12 +98,14 @@ Open the in-game *Settings* and pick the **VR** tab (the same options are in `Be
 - **Seated mode** — *On by default* Because who wants to stand when playing this game? You can disable it to switch to standing mode but you'll have to restart the game to apply.
 - **Hidden item displays** — items whose 3D model is hidden on your own character in VR (default: Kinetic Dampener). Comma-separated, matched by in-game name; the items still work.
 - **Menu selection frame** / **VR keyboard** / **VR chat (left stick click)** — *On by default* the amber selection frame, the on-screen keyboard and the chat shortcut; each can be switched off.
-- **Runtime hands** — per-survivor hand position/rotation offsets, aim/laser offsets, a per-survivor forearm switch (`<Body>_Forearm`, off for False Son), and held-weapon offsets (Operator's gun, False Son's club). Edits to these take effect within 3 seconds of saving the config file, so they can be tuned while in a run.
+- **Enforcer: Shield opacity** — how solid Enforcer's shield looks while shielding (0 = invisible, 100 = solid).
+- **Runtime hands** — the hand, aim and held-weapon positions for the Seekers of the Storm, Alloyed Collective and Hallowed Concepts survivors are built into the mod and are no longer in the config file; there is nothing to tune. Older config files are cleaned up automatically.
 
 ## Known issues in this build
 
 - Hand models are not shown inside menus (menus are navigated like a gamepad). Hands and weapons work normally in a run.
-- The hands for the Seekers of the Storm and Alloyed Collective survivors are generated from the character model at runtime rather than hand-made, so they are functional rather than pretty. Their position and rotation can be tuned per survivor in the config.
+- The hands for the Seekers of the Storm, Alloyed Collective and Hallowed Concepts survivors are generated from the character model at runtime rather than hand-made, so they are functional rather than pretty. Their positions are fixed in the mod and cannot be adjusted by players.
+- The loading screen can sit at 0 % for about 20 seconds before it starts counting. This comes from the FixPluginTypesSerialization dependency on the current game build, not from this mod; it happens with the VR mod disabled too.
 - Bhaptics / Shockwave haptics suit support is still compiled in but has not been tested with this build.
 - Character support from [VRAPI](https://thunderstore.io/package/DrBibop/VRAPI/) (custom survivors with VR hands) is included unchanged and untested.
 

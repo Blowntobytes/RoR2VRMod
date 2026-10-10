@@ -71,6 +71,7 @@ namespace VRMod
             }
         }
 
+
         private static bool InsideFrustum(Plane[] frustum, Vector3 worldPos)
         {
             foreach (Plane plane in frustum)

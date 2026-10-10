@@ -35,6 +35,7 @@ namespace VRMod
         internal static ConfigEntry<float> AcridSwingSpeedThreshold { get; private set; }
         internal static ConfigEntry<float> RailgunnerWeaponGripSnapAngle { get; private set; }
         internal static ConfigEntry<float> RailgunnerZoomMultiplier { get; private set; }
+        internal static ConfigEntry<int> EnforcerShieldOpacity { get; private set; }
         internal static ConfigEntry<bool> RailgunnerDisableScopeRay { get; private set; }
         internal static Color RayColor = Color.white;
 
@@ -93,11 +94,62 @@ namespace VRMod
         internal static ConfigEntry<float> SeekerLotusRaise { get; private set; }
         internal static ConfigEntry<float> SeekerMeditateRaise { get; private set; }
 
-        /// <summary>Late-bound per-character runtime hand offset entries (2.20.0 experimental).</summary>
+        /// <summary>
+        /// 1.0.5: per-character hand / aim / weapon / forearm / view entries are NOT in VRMod.cfg.
+        /// Their values are built in (BakedHandDefaults). They only become editable when the
+        /// developer file BepInEx\config\VRMod.HandTuning.cfg exists (create an empty file with that
+        /// name): it is then filled with every entry and re-read live while playing.
+        /// </summary>
+        internal const string HandTuningFileName = "VRMod.HandTuning.cfg";
+        private static ConfigFile handFile;
+        internal static bool HandTuningEnabled { get; private set; }
+
+        private static void CreateHandFile()
+        {
+            string path = System.IO.Path.Combine(Paths.ConfigPath, HandTuningFileName);
+            HandTuningEnabled = System.IO.File.Exists(path);
+            handFile = new ConfigFile(path, false) { SaveOnConfigSet = false };
+        }
+
         internal static ConfigEntry<T> BindRuntimeHand<T>(string bodyName, string key, T defaultValue, string description)
         {
-            return configFile.Bind<T>("RuntimeHands (experimental)", $"{bodyName}_{key}", defaultValue, description);
+            string fullKey = $"{bodyName}_{key}";
+            string section = CharacterSection(bodyName);
+            if (BakedHandDefaults.Values.TryGetValue(fullKey, out string baked))
+            {
+                try { defaultValue = (T)TomlTypeConverter.ConvertToValue(baked, typeof(T)); } catch { }
+            }
+            if (HandTuningEnabled && !handFile.ContainsKey(new ConfigDefinition(section, fullKey))) saveDirty = true;
+            return handFile.Bind<T>(section, fullKey, defaultValue, description);
         }
+
+        /// <summary>Old (pre-2.23.35) section that held every character's hand/weapon/view entries.</summary>
+        internal const string LegacyRuntimeHandSection = "RuntimeHands (experimental)";
+
+        /// <summary>
+        /// 2.23.35: each character's hands, weapons, forearm and view scale live together in their
+        /// own section, "Character - &lt;Body&gt;". Forms (AcolyteBody_Reaper) share their body's section.
+        /// </summary>
+        internal static string CharacterSection(string bodyName)
+        {
+            int cut = bodyName.IndexOf('_');
+            return "Character - " + (cut > 0 ? bodyName.Substring(0, cut) : bodyName);
+        }
+
+        private static System.Reflection.PropertyInfo orphanProp;
+
+        /// <summary>The config file's unbound ("orphaned") entries, or null if BepInEx changed.</summary>
+        internal static Dictionary<ConfigDefinition, string> Orphans(ConfigFile file = null)
+        {
+            try
+            {
+                if (orphanProp == null)
+                    orphanProp = typeof(ConfigFile).GetProperty("OrphanedEntries", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+                return orphanProp?.GetValue(file ?? configFile) as Dictionary<ConfigDefinition, string>;
+            }
+            catch { return null; }
+        }
+
 
         private static System.DateTime lastConfigWrite = System.DateTime.MinValue;
 
@@ -108,19 +160,46 @@ namespace VRMod
         /// </summary>
         internal static bool ReloadRuntimeHandConfig()
         {
+            if (!HandTuningEnabled) return false; // public builds: values are built in, nothing to re-read
             try
             {
-                if (!RuntimeHandsDebug.Value)
-                {
-                    System.DateTime write = System.IO.File.GetLastWriteTimeUtc(configFile.ConfigFilePath);
-                    if (lastConfigWrite == System.DateTime.MinValue) { lastConfigWrite = write; return false; }
-                    if (write == lastConfigWrite) return false;
-                    lastConfigWrite = write;
-                }
-                configFile.Reload();
+                FlushIfDirty();
+                if (Time.unscaledTime < nextReloadCheck) return reloadedThisWindow;
+                nextReloadCheck = Time.unscaledTime + 1f;
+                reloadedThisWindow = false;
+                System.DateTime write = System.IO.File.GetLastWriteTimeUtc(handFile.ConfigFilePath);
+                if (lastConfigWrite == System.DateTime.MinValue) { lastConfigWrite = write; return false; }
+                if (write == lastConfigWrite) return false;
+                lastConfigWrite = write;
+                handFile.Reload();
+                reloadedThisWindow = true;
                 return true;
             }
             catch { return false; }
+        }
+
+        private static float nextReloadCheck;
+        private static bool reloadedThisWindow;
+        private static bool saveDirty;
+
+        /// <summary>Writes the developer hand-tuning file once after new entries were bound.</summary>
+        internal static void FlushIfDirty()
+        {
+            if (!saveDirty || !HandTuningEnabled) { saveDirty = false; return; }
+            saveDirty = false;
+            try
+            {
+                handFile.Save();
+                lastConfigWrite = System.IO.File.GetLastWriteTimeUtc(handFile.ConfigFilePath);
+            }
+            catch { }
+        }
+
+        /// <summary>Runs an action that changes hand-tuning entries, then saves once (developer file only).</summary>
+        internal static void Batched(System.Action action)
+        {
+            action();
+            saveDirty = true;
         }
 
         /// <summary>
@@ -163,6 +242,22 @@ namespace VRMod
         }
 
         internal static void Init()
+        {
+            // 2.23.44: ~500 Binds each rewrote the whole config file (BepInEx SaveOnConfigSet) -
+            // about 20 s of loading screen. Bind everything first, write the file once at the end.
+            configFile.SaveOnConfigSet = false;
+            CreateHandFile();
+            RemoveHandSectionsFromMainConfig();
+            try { InitEntries(); }
+            finally
+            {
+                configFile.SaveOnConfigSet = true;
+                try { configFile.Save(); } catch { }
+                if (HandTuningEnabled) { try { handFile.Save(); } catch { } }
+            }
+        }
+
+        private static void InitEntries()
         {
             OculusMode = configFile.Bind<bool>(
                 "VR Settings",
@@ -282,6 +377,12 @@ namespace VRMod
                 50,
                 "Angle in which the non-dominant hand can grip the weapon. Set to 0 to completely disable two-handed gripping. Set to 180 for constant grip."
             );
+            EnforcerShieldOpacity = configFile.Bind<int>(
+                "Survivor Settings",
+                "Enforcer: Shield opacity",
+                100,
+                "How solid Enforcer's shield looks in your right hand while you are shielding, in percent. 0 = invisible, 100 = fully solid."
+            );
             RailgunnerZoomMultiplier = configFile.Bind<float>(
                 "Survivor Settings",
                 "Railgunner: Zoom multiplier",
@@ -295,20 +396,20 @@ namespace VRMod
                 "Disables the aim ray while using the scope. Enable this setting if you find it obstructs the scope too much... or if you're a gamer and think no scopes should be harder."
             );
 
-            RuntimeHands = configFile.Bind<bool>(
-                "RuntimeHands (experimental)",
+            RuntimeHands = handFile.Bind<bool>(
+                "RuntimeHands",
                 "Enable runtime hands",
                 true,
                 "EXPERIMENTAL: for characters without an authored VR hand (e.g. Seekers of the Storm survivors), build a hand model at runtime from the character's own arm mesh. Characters with real VR hands are unaffected."
             );
-            RuntimeHandsDebug = configFile.Bind<bool>(
-                "RuntimeHands (experimental)",
+            RuntimeHandsDebug = handFile.Bind<bool>(
+                "RuntimeHands",
                 "Debug mode",
                 false,
-                "Draws RGB axis lines on runtime hands (blue = aim direction) and logs every entity state the local character enters. (The per-character offsets below are always re-read within 3 seconds of saving this file, debug mode or not.)"
+                "Draws axis lines on runtime hands: X = RED, Y = GREEN, Z = BLUE. The hand gizmo shows the axes the hand Rot/Pos offsets act on (it stays put while you tune); a second gizmo on a held weapon shows the weapon offsets' axes. Lines update with each config reload and logs every entity state the local character enters. (Each character's offsets are in its own 'Character - <Body>' section and are re-read within 5 seconds of saving this file, debug mode or not.)"
             );
-            RuntimeHandsRay = configFile.Bind<bool>(
-                "RuntimeHands (experimental)",
+            RuntimeHandsRay = handFile.Bind<bool>(
+                "RuntimeHands",
                 "Show aim ray",
                 true,
                 "Shows the aim ray on runtime hands so aiming is usable before the offsets are tuned."
@@ -338,8 +439,8 @@ namespace VRMod
                 "Comma-separated list of items whose 3D display on YOUR character is hidden in VR (they still work; only the model on the body/hands is not drawn). Matched against the item's in-game name, case-insensitive. Example: Kinetic Dampener, Bundle of Fireworks"
             );
 
-            RuntimeHandsItemScale = configFile.Bind<float>(
-                "RuntimeHands (experimental)",
+            RuntimeHandsItemScale = handFile.Bind<float>(
+                "RuntimeHands",
                 "Item display scale on hands",
                 1f,
                 "Scales item pickups that the game attaches to the runtime VR hands and forearms (razor wire, etc.). They are modelled for the third-person character, so at 1.0 they fill the view in first person. 0.5 is half size; 1.0 is the game's own size."
@@ -551,6 +652,7 @@ namespace VRMod
             settings.Add("vr_loader_threshold", new ConfigSetting(LoaderSwingSpeedThreshold, 5, 50, ConfigSetting.SettingUpdate.Instant, MotionControls.UpdateLoaderMeleeThreshold));
             settings.Add("vr_acrid_threshold", new ConfigSetting(AcridSwingSpeedThreshold, 5, 50, ConfigSetting.SettingUpdate.Instant, MotionControls.UpdateAcridMeleeThreshold));
             settings.Add("vr_railgunner_angle", new ConfigSetting(RailgunnerWeaponGripSnapAngle, 0, 180, ConfigSetting.SettingUpdate.Instant, MotionControls.UpdateRailgunnerSnapAngle));
+            settings.Add("vr_enforcer_shield_opacity", new ConfigSetting(EnforcerShieldOpacity, 0, 100, ConfigSetting.SettingUpdate.Instant));
             settings.Add("vr_railgunner_zoom", new ConfigSetting(RailgunnerZoomMultiplier, 2, 4, ConfigSetting.SettingUpdate.Instant));
             settings.Add("vr_railgunner_scoperay", new ConfigSetting(RailgunnerDisableScopeRay, ConfigSetting.SettingUpdate.Instant));
             settings.Add("vr_hud_width", new ConfigSetting(HUDWidth, 400, 2400, ConfigSetting.SettingUpdate.Instant, ChangeHUDSize));
@@ -567,6 +669,29 @@ namespace VRMod
 
             // Last: everything is bound now, so anything still orphaned is truly unused.
             RemoveObsoleteEntries();
+        }
+
+        /// <summary>
+        /// 1.0.5: the per-character sections and the runtime-hands section are no longer part of
+        /// VRMod.cfg (values are built in; tuning moved to the developer file). Strip them from
+        /// existing config files so players don't see stale, non-functional entries.
+        /// </summary>
+        private static void RemoveHandSectionsFromMainConfig()
+        {
+            try
+            {
+                var orphans = Orphans();
+                if (orphans == null) return;
+                var remove = new List<ConfigDefinition>();
+                foreach (ConfigDefinition def in orphans.Keys)
+                    if (def.Section.StartsWith("Character - ") || def.Section == LegacyRuntimeHandSection) remove.Add(def);
+                foreach (ConfigDefinition def in remove) orphans.Remove(def);
+                if (remove.Count > 0) VRMod.StaticLogger.LogInfo($"[VR config] Removed {remove.Count} runtime-hand setting(s) from VRMod.cfg (built in now).");
+            }
+            catch (Exception e)
+            {
+                VRMod.StaticLogger.LogWarning("[VR config] Could not clean runtime-hand settings: " + e.Message);
+            }
         }
 
         private static void ChangeLIVHUD(object sender, EventArgs e)

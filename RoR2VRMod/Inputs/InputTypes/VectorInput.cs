@@ -11,6 +11,8 @@ namespace VRMod.Inputs
         protected int xAxisID;
         protected int yAxisID;
 
+        internal int XAxisId => xAxisID;
+
         internal VectorInput(XRNode deviceNode, InputHelpers.Axis2D vector, int xAxisID, int yAxisID) : base(deviceNode)
         {
             this.vector = vector;

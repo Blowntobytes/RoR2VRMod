@@ -338,10 +338,69 @@ namespace VRMod
             {
                 introSkipGroup = skipGroup;
                 RoR2Application.onUpdate += KeepSkipPromptVisible;
+
+                // Pulled toward the canvas centre once layout has settled - see PullSkipPromptInward.
+                introSkipCanvas = canvasObject.transform as RectTransform;
+                introSkipPulled = false;
+                introSkipFrames = 0;
             }
         }
 
         private static Transform introSkipGroup;
+        private static RectTransform introSkipCanvas;
+        private static bool introSkipPulled;
+        private static int introSkipFrames;
+
+        /// <summary>
+        /// The skip prompt sits in the intro canvas's bottom-right corner; the desktop mirror shows a
+        /// cropped eye view, so that corner was cut off on the monitor. CanvasGroup itself stretches
+        /// over the whole canvas (moving it by its own pivot did nothing in 2.23.21), so measure the
+        /// prompt's actual graphics and shift the group so their centre moves toward the canvas centre.
+        /// </summary>
+        private static void PullSkipPromptInward()
+        {
+            if (introSkipPulled || !introSkipGroup || !introSkipCanvas) return;
+            if (++introSkipFrames < 3) return; // let layout and the overlay's own animation settle
+            introSkipPulled = true;
+
+            bool any = false;
+            Vector3 min = Vector3.positiveInfinity, max = Vector3.negativeInfinity;
+            Vector3[] corners = new Vector3[4];
+            var tree = new System.Text.StringBuilder();
+            foreach (UnityEngine.UI.Graphic g in introSkipGroup.GetComponentsInChildren<UnityEngine.UI.Graphic>(true))
+            {
+                if (!g || !g.gameObject.activeInHierarchy) continue;
+                g.rectTransform.GetWorldCorners(corners);
+                foreach (Vector3 c in corners)
+                {
+                    Vector3 l = introSkipCanvas.InverseTransformPoint(c);
+                    min = Vector3.Min(min, l); max = Vector3.Max(max, l);
+                }
+                any = true;
+                tree.Append(g.name).Append(' ');
+            }
+            if (!any)
+            {
+                VRMod.StaticLogger.LogWarning("[VR intro] skip prompt: no visible graphics to measure; left in place.");
+                return;
+            }
+
+            Vector3 contentCentre = (min + max) * 0.5f;
+            Vector3 canvasCentre = introSkipCanvas.rect.center;
+            Vector3 desired = canvasCentre + (contentCentre - canvasCentre) * IntroSkipPromptPull;
+            // 2.23.32: raise it a further 5% of the canvas height - it overlapped other intro text.
+            desired.y += introSkipCanvas.rect.height * IntroSkipPromptRaise;
+            Vector3 deltaLocal = desired - contentCentre;
+            deltaLocal.z = 0;
+            Vector3 deltaWorld = introSkipCanvas.TransformVector(deltaLocal);
+            introSkipGroup.position += deltaWorld;
+            VRMod.StaticLogger.LogInfo($"[VR intro] skip prompt content (canvas-local) {min:F0}..{max:F0}, centre {contentCentre:F0} -> {desired:F0} (pull {IntroSkipPromptPull}, raise {IntroSkipPromptRaise:P0}); graphics: {tree}");
+        }
+
+        /// <summary>How far the intro skip prompt is pulled toward the canvas centre (1 = original corner).</summary>
+        private const float IntroSkipPromptPull = 0.7f;
+        /// <summary>Extra upward shift of the intro skip prompt, as a fraction of the canvas height.</summary>
+        private const float IntroSkipPromptRaise = 0.05f;
         private static TMPro.TMP_SpriteAsset introGlyphSheet;
 
         private static void KeepSkipPromptVisible()
@@ -353,6 +412,7 @@ namespace VRMod
             }
             try
             {
+                PullSkipPromptInward();
                 Transform overlay = introSkipGroup.parent;
                 if (overlay && !overlay.gameObject.activeSelf) overlay.gameObject.SetActive(true);
                 if (!introSkipGroup.gameObject.activeSelf) introSkipGroup.gameObject.SetActive(true);

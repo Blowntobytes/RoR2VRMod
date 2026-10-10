@@ -17,6 +17,8 @@ namespace VRMod
 
         private Canvas canvas;
 
+        internal Canvas Canvas => canvas;
+
         private CameraRigController cameraRig;
 
         private List<RectTransform> hudClusters = new List<RectTransform>();

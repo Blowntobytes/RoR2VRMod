@@ -55,7 +55,7 @@ namespace VRMod
                     string headerNames = tabs.headers != null
                         ? string.Join(", ", tabs.headers.ConvertAll(h => h.headerName).ToArray())
                         : "?";
-                    VRMod.StaticLogger.LogInfo($"[VR input] Settings tab moved {(leftEdge ? "left" : "right")} with the grip; now on index {tabs.currentHeaderIndex} of [{headerNames}].");
+                    if (ModConfig.RuntimeHandsDebug.Value) VRMod.StaticLogger.LogInfo($"[VR input] Settings tab moved {(leftEdge ? "left" : "right")} with the grip; now on index {tabs.currentHeaderIndex} of [{headerNames}].");
                 }
             }
             catch (System.Exception e)

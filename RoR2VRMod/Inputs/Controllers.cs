@@ -1,4 +1,4 @@
-﻿using Mono.Cecil.Cil;
+using Mono.Cecil.Cil;
 using MonoMod.Cil;
 using MonoMod.RuntimeDetour;
 using Rewired;
@@ -259,7 +259,24 @@ namespace VRMod
         {
             ILCursor c = new ILCursor(il);
 
-            c.GotoNext(x => x.MatchStloc(6));
+            // Find the locals by type instead of fixed slots: the Oct 2026 game update added three locals at the
+            // start of PlayerCharacterMasterController.Update, shifting the camera Transform from 6 to 9 and the
+            // two move-input Vector2s from 7/8 to 10/11.
+            int transformLocal = -1, moveLocal = -1, moveLocal2 = -1;
+            foreach (var v in il.Body.Variables)
+            {
+                string tn = v.VariableType.FullName;
+                if (transformLocal < 0 && tn == "UnityEngine.Transform") transformLocal = v.Index;
+                else if (tn == "UnityEngine.Vector2") { if (moveLocal < 0) moveLocal = v.Index; else if (moveLocal2 < 0) moveLocal2 = v.Index; }
+            }
+            if (transformLocal < 0 || moveLocal < 0 || moveLocal2 < 0)
+            {
+                VRMod.StaticLogger.LogWarning($"[VR hooks] ControllerMovementDirection: locals not found (T={transformLocal}, V2={moveLocal}/{moveLocal2}) - movement follows the head");
+                return;
+            }
+            var moveVar = il.Body.Variables[moveLocal];
+
+            c.GotoNext(x => x.MatchStloc(transformLocal));
             c.EmitDelegate<Func<Transform, Transform>>((headTransform) =>
             {
                 if (!ModConfig.ControllerMovementDirection.Value) return headTransform;
@@ -276,9 +293,9 @@ namespace VRMod
                 }
             });
 
-            c.GotoNext(x => x.MatchLdloca(8));
+            c.GotoNext(x => x.MatchLdloca(moveLocal2));
 
-            c.Emit(OpCodes.Ldloc_S, (byte)7);
+            c.Emit(OpCodes.Ldloc, moveVar);
             c.EmitDelegate<Func<Vector2, Vector2>>((vector) =>
             {
                 if (!ModConfig.ControllerMovementDirection.Value || MotionControls.HandsReady) return vector;
@@ -293,7 +310,7 @@ namespace VRMod
 
                 return Quaternion.Euler(new Vector3(0, 0, angleDifference)) * vector;
             });
-            c.Emit(OpCodes.Stloc_S, (byte)7);
+            c.Emit(OpCodes.Stloc, moveVar);
 
             c.GotoNext(x => x.MatchCallvirt<Transform>("get_right"));
             c.Index += 1;
@@ -327,16 +344,16 @@ namespace VRMod
                 new VectorInput(XRNode.LeftHand, InputHelpers.Axis2D.PrimaryAxis2D, 0, 1),
                 new VectorInput(XRNode.RightHand, InputHelpers.Axis2D.PrimaryAxis2D, 2, 3),
                 new VectorInput(XRNode.LeftHand, InputHelpers.Axis2D.PrimaryAxis2D, 4, 5),
-                new ButtonInput(XRNode.RightHand, InputHelpers.Button.PrimaryButton, 6),
-                new ButtonInput(XRNode.RightHand, InputHelpers.Button.SecondaryButton, 7),
+                new ButtonInput(XRNode.RightHand, InputHelpers.Button.PrimaryButton, 6, ViveOverride.PadClickDown),
+                new ButtonInput(XRNode.RightHand, InputHelpers.Button.SecondaryButton, 7, ViveOverride.PadClickUp),
                 new ButtonInput(XRNode.RightHand, InputHelpers.Button.TriggerButton, 8),
                 new ButtonInput(XRNode.LeftHand, InputHelpers.Button.TriggerButton, 9),
                 new ButtonInput(XRNode.LeftHand, InputHelpers.Button.GripButton, 10),
                 new ButtonInput(XRNode.RightHand, InputHelpers.Button.GripButton, 11),
-                new ButtonInput(XRNode.LeftHand, InputHelpers.Button.PrimaryButton, 12),
-                new ButtonInput(XRNode.LeftHand, InputHelpers.Button.Primary2DAxisClick, 13),
-                new ButtonInput(XRNode.RightHand, InputHelpers.Button.Primary2DAxisClick, 14),
-                new HoldableButtonInput(XRNode.LeftHand, InputHelpers.Button.SecondaryButton, 15),
+                new ButtonInput(XRNode.LeftHand, InputHelpers.Button.PrimaryButton, 12, ViveOverride.PadClickUp),
+                new ButtonInput(XRNode.LeftHand, InputHelpers.Button.Primary2DAxisClick, 13, ViveOverride.PadClickDown),
+                new ButtonInput(XRNode.RightHand, InputHelpers.Button.Primary2DAxisClick, 14, ViveOverride.MenuButton),
+                new HoldableButtonInput(XRNode.LeftHand, InputHelpers.Button.SecondaryButton, 15, ViveOverride.MenuButton),
                 // These elements MUST match ControllerGlyphs.standardGlyphs, which is indexed by element
                 // id and is what the game draws in every on-screen prompt. The OpenXR port wired them to
                 // the wrong physical buttons: the glyph art says 17=A, 19=X, 20/21=triggers, 22/23=grips,
@@ -344,14 +361,14 @@ namespace VRMod
                 // footer prompts advertised buttons that did something else - "left/right trigger" was
                 // drawn for tab left/right while the triggers actually fired submenu left/right. Bound
                 // the way the glyphs describe, every prompt now names the button that really does it.
-                new ButtonInput(XRNode.RightHand, InputHelpers.Button.PrimaryButton, 17),      // Submit (A)
-                new ButtonInput(XRNode.RightHand, InputHelpers.Button.SecondaryButton, 18),    // Cancel (B)
-                new ButtonInput(XRNode.LeftHand, InputHelpers.Button.PrimaryButton, 19),       // Ready / alt submit (X)
+                new ButtonInput(XRNode.RightHand, InputHelpers.Button.PrimaryButton, 17, ViveOverride.PadClickDown),      // Submit (A)
+                new ButtonInput(XRNode.RightHand, InputHelpers.Button.SecondaryButton, 18, ViveOverride.PadClickUp),    // Cancel (B)
+                new ButtonInput(XRNode.LeftHand, InputHelpers.Button.PrimaryButton, 19, ViveOverride.PadClickUp),       // Ready / alt submit (X)
                 new ButtonInput(XRNode.LeftHand, InputHelpers.Button.TriggerButton, 20),       // Tab left (left trigger)
                 new ButtonInput(XRNode.RightHand, InputHelpers.Button.TriggerButton, 21),      // Tab right (right trigger)
                 new ButtonInput(XRNode.LeftHand, InputHelpers.Button.GripButton, 22),          // Submenu left (left grip)
                 new ButtonInput(XRNode.RightHand, InputHelpers.Button.GripButton, 23),         // Submenu right (right grip)
-                new ButtonInput(XRNode.LeftHand, InputHelpers.Button.SecondaryButton, 24)         // Pause menu - single press on Y
+                new TapButtonInput(XRNode.LeftHand, InputHelpers.Button.SecondaryButton, 24, ViveOverride.MenuButton)      // Pause menu - quick press-and-RELEASE on Y (hold = scoreboard, element 15)
             };
         }
 
@@ -464,17 +481,25 @@ namespace VRMod
             if (VRKeyboard.IsOpen || Time.unscaledTime < suppressGameInputUntil)
             {
                 for (int id = 0; id <= 5; id++) vrControllers.SetAxisValueById(id, 0f);
-                for (int id = 6; id <= 32; id++) vrControllers.SetButtonValueById(id, false);
+                for (int id = 6; id <= Inputs.KeyItemCombo.PrevElement; id++) vrControllers.SetButtonValueById(id, false);
+                Inputs.KeyItemCombo.Reset();
                 VRKeyboard.Tick();
                 return;
             }
+
+            // Key item combo (left grip + right A / right stick) decides first - see KeyItemCombo.
+            Inputs.KeyItemCombo.Poll();
 
             foreach (BaseInput input in inputs)
             {
                 if (lobbyActive && input is Inputs.ButtonInput bi && (bi.ElementId == 24 || bi.ElementId == 15))
                     continue;
+                if (Inputs.KeyItemCombo.Owns(input))
+                    continue;
                 input.UpdateValues(vrControllers);
             }
+
+            Inputs.KeyItemCombo.Apply(vrControllers);
 
             foreach (BaseInput input in modInputs)
             {

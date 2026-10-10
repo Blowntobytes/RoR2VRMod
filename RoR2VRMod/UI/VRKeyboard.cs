@@ -6,6 +6,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.XR;
+using VRMod.Inputs;
 
 namespace VRMod
 {
@@ -159,10 +160,13 @@ namespace VRMod
             if (left.isValid) left.TryGetFeatureValue(CommonUsages.primary2DAxis, out stick);
             HandleStick(stick);
 
-            bool a = Pressed(right, CommonUsages.primaryButton);
-            bool b = Pressed(right, CommonUsages.secondaryButton);
-            bool x = Pressed(left, CommonUsages.primaryButton);
-            bool y = Pressed(left, CommonUsages.secondaryButton);
+            // Trackpad wands (Vive / original WMR): pad down = type, pad up = close,
+            // right trigger = backspace, left trigger = space.
+            bool wand = ViveControllers.IsTrackpadWand;
+            bool a = wand ? ViveControllers.PadClickDown(right) : Pressed(right, CommonUsages.primaryButton);
+            bool b = wand ? ViveControllers.PadClickUp(right) : Pressed(right, CommonUsages.secondaryButton);
+            bool x = wand ? Pressed(right, CommonUsages.triggerButton) : Pressed(left, CommonUsages.primaryButton);
+            bool y = wand ? Pressed(left, CommonUsages.triggerButton) : Pressed(left, CommonUsages.secondaryButton);
 
             if (a && !aWas)
             {
@@ -285,7 +289,9 @@ namespace VRMod
             if (!box || !box.inputField || !box.gameObject.activeInHierarchy) return;
             chatTarget = box;
             Open(new FieldRef { tmp = box.inputField });
-            if (IsOpen) hint.text = "CHAT   <color=#FFD24A>A</color> type   <color=#FFD24A>X</color> backspace   <color=#FFD24A>Y</color> space   <color=#FFD24A>B</color> / DONE = send (B with nothing typed = close)";
+            if (IsOpen) hint.text = ViveControllers.IsTrackpadWand
+                ? "CHAT   <color=#FFD24A>pad down</color> type   <color=#FFD24A>R trigger</color> backspace   <color=#FFD24A>L trigger</color> space   <color=#FFD24A>pad up</color> / DONE = send (pad up with nothing typed = close)"
+                : "CHAT   <color=#FFD24A>A</color> type   <color=#FFD24A>X</color> backspace   <color=#FFD24A>Y</color> space   <color=#FFD24A>B</color> / DONE = send (B with nothing typed = close)";
         }
 
         /// <summary>Opens the keyboard when A is pressed on a selected text box.</summary>
@@ -306,7 +312,7 @@ namespace VRMod
             if (field == null) { submitWas = false; return; }
 
             InputDevice right = InputDevices.GetDeviceAtXRNode(XRNode.RightHand);
-            bool submit = Pressed(right, CommonUsages.primaryButton);
+            bool submit = ViveControllers.IsTrackpadWand ? ViveControllers.PadClickDown(right) : Pressed(right, CommonUsages.primaryButton);
             bool edge = submit && !submitWas;
             submitWas = submit;
             if (!edge) return;
@@ -339,7 +345,9 @@ namespace VRMod
             Place();
             RefreshLabels();
             preview.text = field.text;
-            hint.text = "<color=#FFD24A>A</color> type   <color=#FFD24A>X</color> backspace   <color=#FFD24A>Y</color> space   <color=#FFD24A>B</color> close   DONE = confirm";
+            hint.text = ViveControllers.IsTrackpadWand
+                ? "<color=#FFD24A>pad down</color> type   <color=#FFD24A>R trigger</color> backspace   <color=#FFD24A>L trigger</color> space   <color=#FFD24A>pad up</color> close   DONE = confirm"
+                : "<color=#FFD24A>A</color> type   <color=#FFD24A>X</color> backspace   <color=#FFD24A>Y</color> space   <color=#FFD24A>B</color> close   DONE = confirm";
             panel.SetActive(true);
             VRMod.StaticLogger.LogInfo($"[VR keyboard] Opened for '{field.name}'.");
         }

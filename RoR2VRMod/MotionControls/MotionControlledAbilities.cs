@@ -120,7 +120,8 @@ namespace VRMod
             beamOffset.localPosition = new Vector3(0, 0, 0.1f);
             beamOffset.localScale = new Vector3(0.6f, 0.6f, 1);
 
-            IL.RoR2.PlayerCharacterMasterController.PollButtonInput += SprintBreakDirection;
+            IL.RoR2.PlayerCharacterMasterController.PollInputToButtonBuffers += MeleeSkillButtons;
+            IL.EntityStates.GenericCharacterMain.GatherInputs += SprintBreakDirection;
             On.RoR2.PlayerCharacterMasterController.CheckPinging += PingFromHand;
             On.RoR2.CameraRigController.ModifyAimRayIfApplicable += CancelModifyIfLocal;
             On.RoR2.EquipmentSlot.GetAimRay += GetLeftAimRay;
@@ -1017,36 +1018,55 @@ namespace VRMod
             }
         }
 
-        private static void SprintBreakDirection(ILContext il)
+        // Game update (Unity 2021.3.45, Oct 2026): PlayerCharacterMasterController.PollButtonInput was rewritten
+        // around ButtonBuffers. The skill-button reads moved to PollInputToButtonBuffers and the sprint-vs-aim
+        // cancel moved to GenericCharacterMain.GatherInputs, so the old single hook is split in two.
+
+        /// <summary>Motion-controlled melee swings count as skill1-4 presses (Rewired actions 7-10).</summary>
+        private static void MeleeSkillButtons(ILContext il)
         {
             ILCursor c = new ILCursor(il);
 
-            c.GotoNext(
-                x => x.MatchLdarg(0),
-                x => x.MatchLdfld<PlayerCharacterMasterController>("bodyInputs"),
-                x => x.MatchCallvirt<InputBankTest>("get_aimDirection")
-                );
-
-            c.RemoveRange(3);
-
-            c.Emit(OpCodes.Ldloc_S, (byte)14);
-            c.EmitDelegate<Func<CameraRigController, Vector3>>((rig) =>
-            {
-                return rig.sceneCam.transform.forward;
-            }
-            );
-
             for (int i = 0; i < 4; i++)
             {
-                c.GotoNext(x => x.MatchCallvirt(typeof(Player), "GetButton"));
+                if (!c.TryGotoNext(x => x.MatchCallvirt(typeof(Player), "GetButton")))
+                {
+                    VRMod.StaticLogger.LogWarning($"[VR hooks] MeleeSkillButtons: GetButton #{i + 1} not found - melee swings won't trigger skills");
+                    return;
+                }
 
                 c.Remove();
                 c.EmitDelegate<Func<Player, int, bool>>((player, button) =>
                 {
-                    return player.GetButton(button) || MeleeSkill.skillStates[button - 7];
+                    bool melee = button >= 7 && button <= 10 && MeleeSkill.skillStates[button - 7];
+                    return player.GetButton(button) || melee;
                 }
                 );
             }
+        }
+
+        /// <summary>The sprint-cancel check compares move direction with the camera's forward instead of the (hand) aim direction.</summary>
+        private static void SprintBreakDirection(ILContext il)
+        {
+            ILCursor c = new ILCursor(il);
+
+            if (!c.TryGotoNext(x => x.MatchLdsfld(typeof(EntityStates.GenericCharacterMain), "sprintMinAimMoveDot"))
+                || !c.TryGotoPrev(MoveType.After, x => x.MatchCallvirt<InputBankTest>("get_aimDirection")))
+            {
+                VRMod.StaticLogger.LogWarning("[VR hooks] SprintBreakDirection: sprint aim check not found - sprint may cancel when aiming away with the hand");
+                return;
+            }
+
+            c.Emit(OpCodes.Ldarg_0);
+            c.EmitDelegate<Func<Vector3, EntityStates.GenericCharacterMain, Vector3>>((aim, state) =>
+            {
+                CharacterBody body = state.characterBody;
+                if (!body || !body.IsLocalBody()) return aim;
+
+                CameraRigController rig = LocalUserManager.GetFirstLocalUser()?.cameraRigController;
+                return rig && rig.sceneCam ? rig.sceneCam.transform.forward : aim;
+            }
+            );
         }
 
         private static void PlayFMJShootAnimation(On.EntityStates.Commando.CommandoWeapon.FireFMJ.orig_PlayAnimation orig, EntityStates.Commando.CommandoWeapon.FireFMJ self, float duration)

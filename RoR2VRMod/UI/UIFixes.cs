@@ -1,4 +1,4 @@
-﻿using Mono.Cecil.Cil;
+using Mono.Cecil.Cil;
 using MonoMod.Cil;
 using RoR2;
 using RoR2.HudOverlay;
@@ -42,21 +42,21 @@ namespace VRMod
 
     internal static class UIFixes
     {
-        private static readonly Vector3 menuPosition = new Vector3(0, 0, 15);
+        internal static readonly Vector3 menuPosition = new Vector3(0, 0, 15);
         private static readonly Vector3 characterSelectPosition = new Vector3(0, 0, 5);
 
-        private static readonly Vector3 menuScale = new Vector3(0.01f, 0.01f, 0.01f);
+        internal static readonly Vector3 menuScale = new Vector3(0.01f, 0.01f, 0.01f);
         private static readonly Vector3 characterSelectScale = new Vector3(0.005f, 0.005f, 0.005f);
 
         private static readonly Vector2 menuPivot = new Vector2(0.5f, 0.5f);
 
         private static readonly Vector2 menuResolution = new Vector2(1500, 1000);
-        private static readonly Vector2 hdResolution = new Vector2(1920, 1080);
+        internal static readonly Vector2 hdResolution = new Vector2(1920, 1080);
 
         private static readonly Vector2 gameDetailsResolution = new Vector2(450, 300);
 
 
-        private static Camera cachedUICam;
+        internal static Camera cachedUICam;
         private static Vector3 camRotation;
 
         private static Canvas cachedMultiplayerCanvas;
@@ -217,6 +217,18 @@ namespace VRMod
             {
                 orig(self);
                 CanvasToWorldSpace(self.gameObject, hdResolution, menuPosition, menuScale, true);
+            };
+
+            // Prismatic Trials: convert, then again next frame (something resets the canvas).
+            On.RoR2.UI.WeeklyRunScreenController.OnEnable += (orig, self) =>
+            {
+                orig(self);
+                CanvasToWorldSpace(self.gameObject, hdResolution, menuPosition, menuScale, true);
+                GameObject go = self.gameObject;
+                RoR2Application.onNextUpdate += () =>
+                {
+                    if (go) CanvasToWorldSpace(go, hdResolution, menuPosition, menuScale, true);
+                };
             };
 
             On.RoR2.GameOverController.Awake += (orig, self) =>
@@ -669,7 +681,7 @@ namespace VRMod
             return orig(self, hud);
         }
 
-        private static bool GetUICamera()
+        internal static bool GetUICamera()
         {
             if (cachedUICam == null || !cachedUICam.isActiveAndEnabled)
             {
@@ -718,7 +730,7 @@ namespace VRMod
             }
         }
 
-        private static void CanvasToWorldSpace(GameObject uiObject, Vector2 resolution, Vector3 positionOffset, Vector3 scale, bool addCollider, bool followRotation = false)
+        internal static void CanvasToWorldSpace(GameObject uiObject, Vector2 resolution, Vector3 positionOffset, Vector3 scale, bool addCollider, bool followRotation = false)
         {
             if (!GetUICamera()) return;
 
@@ -793,6 +805,24 @@ namespace VRMod
 
         internal static void AdjustHUD(HUD hud)
         {
+            // 2.23.47: HUD controls (the key item slot is a Selectable) must not be reachable by
+            // stick navigation - from the pause menu's VR settings the stick could select the HUD's
+            // KeyItemSlot IconPanel, which kept the game in UI-focus (no movement) after closing.
+            try
+            {
+                int n = 0;
+                foreach (UnityEngine.UI.Selectable sel in hud.GetComponentsInChildren<UnityEngine.UI.Selectable>(true))
+                {
+                    if (!sel || sel.navigation.mode == UnityEngine.UI.Navigation.Mode.None) continue;
+                    UnityEngine.UI.Navigation nav = sel.navigation;
+                    nav.mode = UnityEngine.UI.Navigation.Mode.None;
+                    sel.navigation = nav;
+                    n++;
+                }
+                if (n > 0) VRMod.StaticLogger.LogInfo($"[VR HUD] Stick navigation disabled on {n} HUD control(s).");
+            }
+            catch (Exception e) { VRMod.StaticLogger.LogWarning("[VR HUD] Could not disable HUD navigation: " + e.Message); }
+
             if (ModConfig.InitialMotionControlsValue)
             {
                 CrosshairManager crosshairManager = hud.GetComponent<CrosshairManager>();
@@ -808,21 +838,40 @@ namespace VRMod
             if (steamBuild)
                 steamBuild.gameObject.SetActive(false);
 
-            RectTransform springCanvas = hud.mainUIPanel.transform.Find("SpringCanvas") as RectTransform;
-            springCanvas.anchorMin = ModConfig.AnchorMin;
-            springCanvas.anchorMax = ModConfig.AnchorMax;
+            RectTransform springCanvas = HudFind(hud, hud.mainUIPanel.transform, "SpringCanvas");
+            if (springCanvas)
+            {
+                springCanvas.anchorMin = ModConfig.AnchorMin;
+                springCanvas.anchorMax = ModConfig.AnchorMax;
+            }
 
-            RectTransform notificationArea = hud.mainContainer.transform.Find("NotificationArea") as RectTransform;
-            notificationArea.anchorMin = new Vector2(0.5f, ModConfig.AnchorMin.y);
-            notificationArea.anchorMax = new Vector2(0.5f, ModConfig.AnchorMin.y);
+            RectTransform notificationArea = HudFind(hud, hud.mainContainer.transform, "NotificationArea");
+            if (notificationArea)
+            {
+                notificationArea.anchorMin = new Vector2(0.5f, ModConfig.AnchorMin.y);
+                notificationArea.anchorMax = new Vector2(0.5f, ModConfig.AnchorMin.y);
+            }
 
-            RectTransform mapNameCluster = hud.mainContainer.transform.Find("MapNameCluster") as RectTransform;
-            mapNameCluster.anchorMin = new Vector2(0.5f, (ModConfig.AnchorMax.y - 0.5f) * 0.54f + 0.5f);
-            mapNameCluster.anchorMax = new Vector2(0.5f, (ModConfig.AnchorMax.y - 0.5f) * 0.54f + 0.5f);
+            RectTransform mapNameCluster = HudFind(hud, hud.mainContainer.transform, "MapNameCluster");
+            if (mapNameCluster)
+            {
+                mapNameCluster.anchorMin = new Vector2(0.5f, (ModConfig.AnchorMax.y - 0.5f) * 0.54f + 0.5f);
+                mapNameCluster.anchorMax = new Vector2(0.5f, (ModConfig.AnchorMax.y - 0.5f) * 0.54f + 0.5f);
+            }
 
-            RectTransform scoreboardPanel = springCanvas.Find("ScoreboardPanel") as RectTransform;
-            scoreboardPanel.offsetMin = new Vector2(0, scoreboardPanel.offsetMin.y);
-            scoreboardPanel.offsetMax = new Vector2(0, scoreboardPanel.offsetMax.y);
+            RectTransform scoreboardPanel = springCanvas ? springCanvas.Find("ScoreboardPanel") as RectTransform : null;
+            if (!scoreboardPanel)
+            {
+                // Oct 2026 game update moved the scoreboard out of SpringCanvas; find it by component instead.
+                ScoreboardController sb = hud.GetComponentInChildren<ScoreboardController>(true);
+                scoreboardPanel = sb ? sb.transform as RectTransform : null;
+            }
+            if (scoreboardPanel)
+            {
+                scoreboardPanel.offsetMin = new Vector2(0, scoreboardPanel.offsetMin.y);
+                scoreboardPanel.offsetMax = new Vector2(0, scoreboardPanel.offsetMax.y);
+            }
+            else HudMissing(hud, "ScoreboardPanel");
 
             if (!GetUICamera()) return;
 
@@ -839,92 +888,181 @@ namespace VRMod
                 hud.mainContainer.AddComponent<SmoothHUD>().Init(hud.cameraRigController.uiCam.transform);
 
             if (SceneCatalog.mostRecentSceneDef.sceneType == SceneType.Cutscene) return;
+            if (!springCanvas) return;
 
             if (ModConfig.TempWristHUDValue)
             {
-                RectTransform healthCluster = springCanvas.Find("BottomLeftCluster/BarRoots") as RectTransform;
-                healthCluster.pivot = new Vector2(0.5f, 0f);
-
-                if (ModConfig.BetterHealthBar.Value)
+                RectTransform healthCluster = HudFind(hud, springCanvas, "BottomLeftCluster/BarRoots");
+                if (healthCluster)
                 {
-                    healthCluster.SetParent(springCanvas);
-                    healthCluster.localRotation = Quaternion.identity;
-                    healthCluster.offsetMin = new Vector2(300, healthCluster.offsetMin.y);
-                    healthCluster.offsetMax = new Vector2(-300, healthCluster.offsetMax.y);
+                    healthCluster.pivot = new Vector2(0.5f, 0f);
 
-                    Vector3 notificationPosition = notificationArea.localPosition;
-                    notificationPosition.y += 80;
-                    notificationArea.localPosition = notificationPosition;
+                    if (ModConfig.BetterHealthBar.Value)
+                    {
+                        healthCluster.SetParent(springCanvas);
+                        healthCluster.localRotation = Quaternion.identity;
+                        healthCluster.offsetMin = new Vector2(300, healthCluster.offsetMin.y);
+                        healthCluster.offsetMax = new Vector2(-300, healthCluster.offsetMax.y);
 
-                    RectTransform spectatorLabel = springCanvas.Find("BottomCenterCluster/SpectatorLabel") as RectTransform;
+                        if (notificationArea)
+                        {
+                            Vector3 notificationPosition = notificationArea.localPosition;
+                            notificationPosition.y += 80;
+                            notificationArea.localPosition = notificationPosition;
+                        }
 
-                    Vector3 labelPosition = spectatorLabel.localPosition;
-                    labelPosition.y += 68;
-                    spectatorLabel.localPosition = labelPosition;
+                        RectTransform spectatorLabel = HudFind(hud, springCanvas, "BottomCenterCluster/SpectatorLabel");
+                        if (spectatorLabel)
+                        {
+                            Vector3 labelPosition = spectatorLabel.localPosition;
+                            labelPosition.y += 68;
+                            spectatorLabel.localPosition = labelPosition;
+                        }
+                    }
+                    else
+                    {
+                        healthCluster.localRotation = Quaternion.identity;
+                        healthCluster.localPosition = Vector3.zero;
+                        MotionControls.AddWristHUD(true, healthCluster);
+                    }
                 }
-                else
+
+                RectTransform moneyCluster = HudFind(hud, springCanvas, "UpperLeftCluster");
+                if (moneyCluster)
                 {
-                    healthCluster.localRotation = Quaternion.identity;
-                    healthCluster.localPosition = Vector3.zero;
-                    MotionControls.AddWristHUD(true, healthCluster);
+                    moneyCluster.localRotation = Quaternion.identity;
+                    moneyCluster.pivot = new Vector2(0.5f, 1f);
+                    moneyCluster.localPosition = Vector3.zero;
+                    MotionControls.AddWristHUD(true, moneyCluster);
                 }
 
-                RectTransform moneyCluster = springCanvas.Find("UpperLeftCluster") as RectTransform;
-                moneyCluster.localRotation = Quaternion.identity;
-                moneyCluster.pivot = new Vector2(0.5f, 1f);
-                moneyCluster.localPosition = Vector3.zero;
-                MotionControls.AddWristHUD(true, moneyCluster);
+                RectTransform contextCluster = HudFind(hud, springCanvas, "RightCluster");
+                if (contextCluster)
+                {
+                    contextCluster.localRotation = Quaternion.identity;
+                    contextCluster.pivot = new Vector2(0f, 0f);
+                    contextCluster.localPosition = Vector3.zero;
+                    if (contextCluster.childCount > 0) (contextCluster.GetChild(0) as RectTransform).pivot = new Vector2(0f, 2f);
+                    MotionControls.AddWristHUD(false, contextCluster);
+                }
 
-                RectTransform contextCluster = springCanvas.Find("RightCluster") as RectTransform;
-                contextCluster.localRotation = Quaternion.identity;
-                contextCluster.pivot = new Vector2(0f, 0f);
-                contextCluster.localPosition = Vector3.zero;
-                (contextCluster.GetChild(0) as RectTransform).pivot = new Vector2(0f, 2f);
-                MotionControls.AddWristHUD(false, contextCluster);
+                RectTransform cooldownsCluster = HudFind(hud, springCanvas, "BottomRightCluster");
+                if (cooldownsCluster)
+                {
+                    cooldownsCluster.localRotation = Quaternion.identity;
+                    cooldownsCluster.pivot = new Vector2(0.2f, -0.6f);
+                    cooldownsCluster.localPosition = Vector3.zero;
+                    MotionControls.AddWristHUD(false, cooldownsCluster);
 
-                RectTransform cooldownsCluster = springCanvas.Find("BottomRightCluster") as RectTransform;
-                cooldownsCluster.localRotation = Quaternion.identity;
-                cooldownsCluster.pivot = new Vector2(0.2f, -0.6f);
-                cooldownsCluster.localPosition = Vector3.zero;
-                MotionControls.AddWristHUD(false, cooldownsCluster);
-
-                MotionControls.SetSprintIcon(cooldownsCluster.Find("Scaler/SprintCluster/SprintIcon").GetComponent<Image>());
+                    Image sprintIcon = FindSprintIcon(cooldownsCluster) ?? FindSprintIcon(springCanvas);
+                    if (sprintIcon) MotionControls.SetSprintIcon(sprintIcon);
+                    else HudMissing(hud, "SprintIcon (searched BottomRightCluster and SpringCanvas)");
+                }
             }
 
             if (ModConfig.TempWatchHUDValue)
             {
-                Transform topCluster = springCanvas.Find("TopCenterCluster");
-                GameObject clusterClone = GameObject.Instantiate(topCluster.gameObject, topCluster.parent);
-                foreach (Transform child in clusterClone.transform)
+                Transform topCluster = HudFind(hud, springCanvas, "TopCenterCluster");
+                RectTransform inventoryCluster = topCluster ? HudFind(hud, topCluster, "ItemInventoryDisplayRoot") : null;
+                if (topCluster && inventoryCluster)
                 {
-                    GameObject.Destroy(child.gameObject);
+                    GameObject clusterClone = GameObject.Instantiate(topCluster.gameObject, topCluster.parent);
+                    foreach (Transform child in clusterClone.transform)
+                    {
+                        GameObject.Destroy(child.gameObject);
+                    }
+                    RectTransform cloneRect = clusterClone.transform as RectTransform;
+                    cloneRect.pivot = new Vector2(0.5f, 1f);
+                    cloneRect.localPosition = Vector3.zero;
+                    inventoryCluster.SetParent(cloneRect);
+                    inventoryCluster.localPosition = Vector3.zero;
+                    MotionControls.AddWatchHUD(true, cloneRect);
                 }
-                RectTransform cloneRect = clusterClone.transform as RectTransform;
-                cloneRect.pivot = new Vector2(0.5f, 1f);
-                cloneRect.localPosition = Vector3.zero;
-                RectTransform inventoryCluster = topCluster.Find("ItemInventoryDisplayRoot") as RectTransform;
-                inventoryCluster.SetParent(cloneRect);
-                inventoryCluster.localPosition = Vector3.zero;
-                MotionControls.AddWatchHUD(true, cloneRect);
 
-                RectTransform chatCluster = springCanvas.Find("BottomLeftCluster/ChatBoxRoot") as RectTransform;
-                chatCluster.localRotation = Quaternion.identity;
-                chatCluster.pivot = new Vector2(0.5f, 0f);
-                chatCluster.localPosition = Vector3.zero;
-                MotionControls.AddWatchHUD(true, chatCluster);
+                RectTransform chatCluster = HudFind(hud, springCanvas, "BottomLeftCluster/ChatBoxRoot");
+                if (chatCluster)
+                {
+                    chatCluster.localRotation = Quaternion.identity;
+                    chatCluster.pivot = new Vector2(0.5f, 0f);
+                    chatCluster.localPosition = Vector3.zero;
+                    MotionControls.AddWatchHUD(true, chatCluster);
+                }
 
-                RectTransform difficultyCluster = springCanvas.Find("UpperRightCluster") as RectTransform;
-                difficultyCluster.localRotation = Quaternion.identity;
-                difficultyCluster.pivot = new Vector2(-1f, -2.5f);
-                difficultyCluster.localPosition = Vector3.zero;
-                MotionControls.AddWatchHUD(false, difficultyCluster);
+                RectTransform difficultyCluster = HudFind(hud, springCanvas, "UpperRightCluster");
+                if (difficultyCluster)
+                {
+                    difficultyCluster.localRotation = Quaternion.identity;
+                    difficultyCluster.pivot = new Vector2(-1f, -2.5f);
+                    difficultyCluster.localPosition = Vector3.zero;
+                    MotionControls.AddWatchHUD(false, difficultyCluster);
+                }
 
-                RectTransform alliesCluster = springCanvas.Find("LeftCluster") as RectTransform;
-                alliesCluster.localRotation = Quaternion.identity;
-                alliesCluster.pivot = new Vector2(1f, 0.5f);
-                alliesCluster.localPosition = Vector3.zero;
-                MotionControls.AddWatchHUD(false, alliesCluster);
+                RectTransform alliesCluster = HudFind(hud, springCanvas, "LeftCluster");
+                if (alliesCluster)
+                {
+                    alliesCluster.localRotation = Quaternion.identity;
+                    alliesCluster.pivot = new Vector2(1f, 0.5f);
+                    alliesCluster.localPosition = Vector3.zero;
+                    MotionControls.AddWatchHUD(false, alliesCluster);
+                }
             }
+        }
+
+        /// <summary>
+        /// Finds the HUD sprint icon by name anywhere under root. The Oct 2026 update moved it out of
+        /// "Scaler/SprintCluster/SprintIcon"; prefer an Image named exactly "SprintIcon", else any
+        /// Image whose name and parent chain mention "Sprint". Logs where it was found.
+        /// </summary>
+        internal static Image FindSprintIcon(Transform root)
+        {
+            if (!root) return null;
+            Image fallback = null;
+            foreach (Image img in root.GetComponentsInChildren<Image>(true))
+            {
+                if (!img) continue;
+                if (img.name == "SprintIcon") { LogSprintIcon(img, root); return img; }
+                if (!fallback && img.name.IndexOf("Sprint", System.StringComparison.OrdinalIgnoreCase) >= 0) fallback = img;
+            }
+            if (fallback) LogSprintIcon(fallback, root);
+            return fallback;
+        }
+
+        private static bool sprintIconLogged;
+
+        private static void LogSprintIcon(Image img, Transform root)
+        {
+            if (sprintIconLogged) return;
+            sprintIconLogged = true;
+            string path = img.name;
+            for (Transform t = img.transform.parent; t && t != root; t = t.parent) path = t.name + "/" + path;
+            VRMod.StaticLogger.LogInfo($"[VR HUD] sprint icon found at {root.name}/{path}");
+        }
+
+        private static bool hudTreeDumped;
+
+        /// <summary>Find a HUD element by path; logs (and dumps the HUD tree once) instead of throwing when the game renames it.</summary>
+        private static RectTransform HudFind(HUD hud, Transform root, string path)
+        {
+            RectTransform t = root ? root.Find(path) as RectTransform : null;
+            if (!t) HudMissing(hud, (root ? root.name + "/" : "") + path);
+            return t;
+        }
+
+        private static void HudMissing(HUD hud, string what)
+        {
+            VRMod.StaticLogger.LogWarning($"[VR HUD] '{what}' not found in the HUD - that element stays in its default place.");
+            if (hudTreeDumped || !hud) return;
+            hudTreeDumped = true;
+            var sb = new System.Text.StringBuilder("[VR HUD] HUD tree (depth 4):\n");
+            DumpHudTree(hud.transform, 0, sb);
+            VRMod.StaticLogger.LogInfo(sb.ToString());
+        }
+
+        private static void DumpHudTree(Transform t, int depth, System.Text.StringBuilder sb)
+        {
+            sb.Append(' ', depth * 2).Append(t.name).Append(t.gameObject.activeSelf ? "" : " (inactive)").Append('\n');
+            if (depth >= 4) return;
+            foreach (Transform c in t) DumpHudTree(c, depth + 1, sb);
         }
 
         private static void UpdateAllHealthBarPositionsVR(On.RoR2.UI.CombatHealthBarViewer.orig_UpdateAllHealthbarPositions orig, RoR2.UI.CombatHealthBarViewer self, Camera sceneCam, Camera uiCam)

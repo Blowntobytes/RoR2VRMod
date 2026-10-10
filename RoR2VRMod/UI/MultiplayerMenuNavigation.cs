@@ -1,6 +1,7 @@
 using RoR2;
 using RoR2.UI;
 using RoR2.UI.MainMenu;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
@@ -37,8 +38,19 @@ namespace VRMod
             {
                 try
                 {
-                    if (self.requiredInputSource == MPEventSystem.InputSource.MouseAndKeyboard && IsInBrowserLeftPanel(self.transform))
+                    // Alternate game mode screens (Eclipse, Simulacrum, Prismatic Trials, Bingo) hide
+                    // their buttons from gamepads too, and on a freshly loaded mode scene the filter has
+                    // no event system yet, which hides everything.
+                    bool modeMenu = IsInModeMenu(self.transform);
+                    if (self.requiredInputSource == MPEventSystem.InputSource.MouseAndKeyboard && (modeMenu || IsInBrowserLeftPanel(self.transform)))
                         self.requiredInputSource = MPEventSystem.InputSource.Gamepad;
+                    if (modeMenu && !self.eventSystem)
+                    {
+                        if (self.objectsToFilter != null)
+                            foreach (GameObject go in self.objectsToFilter)
+                                if (go) go.SetActive(true);
+                        return;
+                    }
                 }
                 catch { }
                 orig(self, force);
@@ -52,6 +64,20 @@ namespace VRMod
         }
 
         private static RemoteGameDetailsPanelController detailsPanel;
+
+        private static bool IsInModeMenu(Transform t)
+        {
+            while (t)
+            {
+                string n = t.name;
+                if (n.IndexOf("RunMenu", StringComparison.OrdinalIgnoreCase) >= 0
+                    || n.IndexOf("GameModeMenu", StringComparison.OrdinalIgnoreCase) >= 0
+                    || n.IndexOf("ExtraGameMode", StringComparison.OrdinalIgnoreCase) >= 0)
+                    return true;
+                t = t.parent;
+            }
+            return false;
+        }
 
         private static bool IsInBrowserLeftPanel(Transform t)
         {

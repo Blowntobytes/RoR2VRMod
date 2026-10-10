@@ -73,7 +73,7 @@ namespace VRMod
 
                 _uiMode = value;
 
-                VRMod.StaticLogger.LogInfo($"[VR input] {(xrNode == XRNode.LeftHand ? "Left" : "Right")} hand UI-pointer mode = {_uiMode} (paused={RoR2.PauseManager.isPaused}).");
+                if (ModConfig.RuntimeHandsDebug.Value) VRMod.StaticLogger.LogInfo($"[VR input] {(xrNode == XRNode.LeftHand ? "Left" : "Right")} hand UI-pointer mode = {_uiMode} (paused={RoR2.PauseManager.isPaused}).");
 
                 if (_uiMode)
                 {

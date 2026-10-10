@@ -37,6 +37,84 @@ namespace VRMod
         private static GameObject spectatorScreenPrefab;
 
         private static Transform cachedCameraTargetTransform;
+        private static float cachedColliderHeight;
+        private static float cachedViewScale = 1f;
+        private static bool reanchorRequested;
+
+        /// <summary>2.23.29: forms that keep the same body and capsule (Acolyte's Reaper) ask for a re-anchor.</summary>
+        internal static void RequestReanchor(string why)
+        {
+            reanchorRequested = true;
+            VRMod.StaticLogger.LogInfo($"[VR camera] re-anchor requested: {why}");
+        }
+
+        private static string ViewKey(CharacterBody body)
+        {
+            string name = body.name.Replace("(Clone)", "").Trim();
+            AcolyteBodySwapController swap = body.GetComponent<AcolyteBodySwapController>();
+            return swap && swap.isReaperForm ? name + "_Reaper" : name;
+        }
+
+        /// <summary>
+        /// Extra view scale on top of the capsule-height scale. Config "&lt;Body&gt;_ViewScale" in
+        /// RuntimeHands (experimental) wins when above 0; otherwise automatic: a Reaper-form
+        /// Acolyte scales by how much higher its camera pivot sits than the normal form's.
+        /// </summary>
+        private static float FormViewScale(CharacterBody body, out string how)
+        {
+            string key = ViewKey(body);
+            float cfg = ModConfig.BindRuntimeHand<float>(key, "ViewScale", 0f,
+                "Extra first-person view scale for this character or form (multiplies the normal height-based scale; 2 = twice as big). 0 = automatic.").Value;
+            if (cfg > 0f) { how = $"config '{key}_ViewScale'"; return cfg; }
+            how = "auto";
+            try
+            {
+                // 2.23.31: use the game's own third-person camera placement. The game orbits the
+                // camera around CameraTargetParams.cameraPivotTransform (falls back to
+                // aimOriginTransform in Awake) raised by cameraParams.pivotVerticalOffset, so that
+                // point's height above the feet is the "eye height" the game designed for this
+                // body/form. Compare it to the normal form (Reaper) or to Commando (any non-survivor
+                // body, e.g. the Shrine of Compulsion Lemurian).
+                CameraTargetParams liveCtp = body.GetComponent<CameraTargetParams>();
+                AcolyteBodySwapController swap = body.GetComponent<AcolyteBodySwapController>();
+                bool reaper = swap && swap.isReaperForm;
+                bool survivor = SurvivorCatalog.GetSurvivorIndexFromBodyIndex(body.bodyIndex) != SurvivorIndex.None;
+                if (!reaper && survivor) return 1f;
+                CharacterCameraParams liveParams = reaper && swap.cameraParams ? swap.cameraParams : (liveCtp ? liveCtp.cameraParams : null);
+                Transform livePivot = liveCtp && liveCtp.cameraPivotTransform ? liveCtp.cameraPivotTransform : body.aimOriginTransform;
+                float formH = GamePivotHeight(body.gameObject, livePivot, liveParams);
+                GameObject refPrefab = reaper ? BodyCatalog.GetBodyPrefab(body.bodyIndex) : BodyCatalog.FindBodyPrefab("CommandoBody");
+                float baseH = PrefabPivotHeight(refPrefab);
+                if (formH > 0.05f && baseH > 0.05f)
+                {
+                    how = $"auto: game camera pivot {formH:F2} m vs {(reaper ? "normal form" : "Commando")} {baseH:F2} m";
+                    return Mathf.Clamp(formH / baseH, 0.25f, 6f);
+                }
+                how = $"auto: pivot not measurable (form {formH:F2}, base {baseH:F2})";
+            }
+            catch (Exception e) { how = "auto: error " + e.Message; }
+            return 1f;
+        }
+
+        /// <summary>Height of the game's camera pivot (+ pivotVerticalOffset) above the body's feet, in body-local units.</summary>
+        private static float GamePivotHeight(GameObject bodyObject, Transform pivot, CharacterCameraParams camParams)
+        {
+            if (!bodyObject || !pivot) return 0f;
+            float y = bodyObject.transform.InverseTransformPoint(pivot.position).y;
+            if (camParams) y += camParams.data.pivotVerticalOffset.value;
+            CapsuleCollider c = bodyObject.GetComponent<CapsuleCollider>();
+            float foot = c ? c.center.y - c.height / 2f : 0f;
+            return y - foot;
+        }
+
+        private static float PrefabPivotHeight(GameObject prefab)
+        {
+            if (!prefab) return 0f;
+            CameraTargetParams ctp = prefab.GetComponent<CameraTargetParams>();
+            CharacterBody b = prefab.GetComponent<CharacterBody>();
+            Transform pivot = ctp && ctp.cameraPivotTransform ? ctp.cameraPivotTransform : (b ? b.aimOriginTransform : null);
+            return GamePivotHeight(prefab, pivot, ctp ? ctp.cameraParams : null);
+        }
 
         private static List<ForcedVisibleRenderer> forcedVisibleRenderers;
 
@@ -683,6 +761,29 @@ namespace VRMod
 
                         if (self.targetBody.IsLocalBody())
                         {
+                            // 2.23.27: in-place transformations (Acolyte's Reaper form swaps the
+                            // hitbox capsule on the SAME body) change the character's height after
+                            // the rig was anchored - re-anchor and rescale when the capsule changes,
+                            // so a giant form gets the same scaled-up view as MUL-T / False Son.
+                            if (cachedCameraTargetTransform && cachedCameraTargetTransform.name == "VRCamera" && cachedCameraTargetTransform.parent == self.targetBody.transform)
+                            {
+                                CapsuleCollider liveCollider = self.targetBody.GetComponent<CapsuleCollider>();
+                                float liveViewScale = FormViewScale(self.targetBody, out string liveHow);
+                                if (reanchorRequested || Mathf.Abs(liveViewScale - cachedViewScale) > 0.01f)
+                                {
+                                    VRMod.StaticLogger.LogInfo($"[VR camera] '{ViewKey(self.targetBody)}' view scale x{cachedViewScale:F2} -> x{liveViewScale:F2} ({liveHow}): re-anchoring the view.");
+                                    reanchorRequested = false;
+                                    GameObject.Destroy(cachedCameraTargetTransform.gameObject);
+                                    cachedCameraTargetTransform = null;
+                                }
+                                else if (liveCollider && Mathf.Abs(liveCollider.height - cachedColliderHeight) > 0.05f)
+                                {
+                                    VRMod.StaticLogger.LogInfo($"[VR camera] '{self.targetBody.name}' capsule height {cachedColliderHeight:F2} -> {liveCollider.height:F2}: re-anchoring the view (scale x{liveCollider.height / 1.82f * ModConfig.HeightMultiplier.Value:F2}).");
+                                    GameObject.Destroy(cachedCameraTargetTransform.gameObject);
+                                    cachedCameraTargetTransform = null;
+                                }
+                            }
+
                             if (!cachedCameraTargetTransform)
                             {
                                 if (!ModConfig.InitialRoomscaleValue)
@@ -710,8 +811,13 @@ namespace VRMod
                                         // camera at eye height regardless of the Seated Mode config, which
                                         // is what makes the roomscale/floor path drop the view to the
                                         // ground when floor tracking isn't available.
-                                        cachedCameraTargetTransform.Translate(collider.center + new Vector3(0, (-collider.height / 2) + (ModConfig.HeightMultiplier.Value * collider.height), 0), Space.Self);
-                                        VRCameraWrapper.instance.transform.localScale = Vector3.one * ModConfig.HeightMultiplier.Value * (collider.height / 1.82f);
+                                        float viewScale = FormViewScale(self.targetBody, out string how);
+                                        cachedCameraTargetTransform.Translate(collider.center + new Vector3(0, (-collider.height / 2) + (ModConfig.HeightMultiplier.Value * collider.height * viewScale), 0), Space.Self);
+                                        VRCameraWrapper.instance.transform.localScale = Vector3.one * ModConfig.HeightMultiplier.Value * (collider.height / 1.82f) * viewScale;
+                                        cachedColliderHeight = collider.height;
+                                        cachedViewScale = viewScale;
+                                        reanchorRequested = false;
+                                        VRMod.StaticLogger.LogInfo($"[VR camera] '{ViewKey(self.targetBody)}' anchored: capsule height {collider.height:F2}, view scale x{viewScale:F2} ({how}), total x{ModConfig.HeightMultiplier.Value * collider.height / 1.82f * viewScale:F2}.");
                                     }
                                 }
                             }

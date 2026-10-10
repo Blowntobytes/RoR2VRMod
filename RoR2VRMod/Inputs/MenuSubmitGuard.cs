@@ -38,7 +38,7 @@ namespace VRMod
 
                 if (frame - lastSubmitClickFrame <= 1)
                 {
-                    VRMod.StaticLogger.LogInfo($"[VR input] Ignored a second menu activation from the same press: '{self.name}' (that press already activated '{lastSubmitClickName}').");
+                    if (ModConfig.RuntimeHandsDebug.Value) VRMod.StaticLogger.LogInfo($"[VR input] Ignored a second menu activation from the same press: '{self.name}' (that press already activated '{lastSubmitClickName}').");
                     return;
                 }
 

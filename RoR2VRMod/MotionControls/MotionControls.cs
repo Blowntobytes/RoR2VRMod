@@ -386,14 +386,9 @@ namespace VRMod
             {
                 if (!cachedSprintIcon)
                 {
-                    Transform iconTransform = Utils.localCameraRig.hud.mainUIPanel.transform.Find("SpringCanvas/BottomRightCluster/Scaler/SprintCluster/SprintIcon");
-                    if (iconTransform)
-                    {
-                        Image sprintIcon = iconTransform.GetComponent<Image>();
-
-                        if (sprintIcon)
-                            cachedSprintIcon = sprintIcon;
-                    }
+                    Image sprintIcon = UIFixes.FindSprintIcon(Utils.localCameraRig.hud.mainUIPanel.transform);
+                    if (sprintIcon)
+                        cachedSprintIcon = sprintIcon;
                 }
 
                 if (cachedSprintIcon)
@@ -431,6 +426,8 @@ namespace VRMod
                     if (!rendererInfo.renderer || !rendererInfo.defaultMaterial) continue;
                     self.UpdateRendererMaterials(rendererInfo.renderer, rendererInfo.defaultMaterial, rendererInfo.ignoreOverlays);
                 }
+
+                RuntimeHandAligner.ApplyShieldOpacity(); // 2.23.41
             }
         }
 

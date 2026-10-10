@@ -44,7 +44,10 @@ namespace VRMod
             "<sprite name=\"texVRGlyphs_Unknown\">",         //ExtraSkill4
             "<sprite name=\"texVRGlyphs_Unknown\">",         //PushToTalk
             "<sprite name=\"texVRGlyphs_Unknown\">",         //BuySkill
-            "<sprite name=\"texVRGlyphs_LSecondary\">"        //Load (Y in lobby)
+            "<sprite name=\"texVRGlyphs_LSecondary\">",        //Load (Y in lobby)
+            "<sprite name=\"texVRGlyphs_LGrip\">+<sprite name=\"texVRGlyphs_RPrimary\">",   //UseKeyItem (hold left grip + interact button),
+            "<sprite name=\"texVRGlyphs_LGrip\">+<sprite name=\"texVRGlyphs_RStick\">",   //KeyItemNextElement (hold left grip + flick right stick),
+            "<sprite name=\"texVRGlyphs_LGrip\">+<sprite name=\"texVRGlyphs_RStick\">"    //KeyItemPrevElement
         };
 
         internal static readonly string[] viveGlyphs = new string[]
@@ -81,7 +84,10 @@ namespace VRMod
             "<sprite name=\"texVRGlyphs_Unknown\">",         //ExtraSkill4
             "<sprite name=\"texVRGlyphs_Unknown\">",         //PushToTalk
             "<sprite name=\"texVRGlyphs_Unknown\">",         //BuySkill
-            "<sprite name=\"texVRGlyphs_LMenu\">"             //Load (Y in lobby)
+            "<sprite name=\"texVRGlyphs_LMenu\">",             //Load (Y in lobby)
+            "<sprite name=\"texVRGlyphs_LGrip\">+<sprite name=\"texVRGlyphs_RTouchDown\">",   //UseKeyItem (hold left grip + interact button),
+            "<sprite name=\"texVRGlyphs_LGrip\">+<sprite name=\"texVRGlyphs_RTouchHor\">",   //KeyItemNextElement (hold left grip + flick right stick),
+            "<sprite name=\"texVRGlyphs_LGrip\">+<sprite name=\"texVRGlyphs_RTouchHor\">"    //KeyItemPrevElement
         };
 
         internal static readonly string[] wmrGlyphs = new string[]
@@ -118,7 +124,10 @@ namespace VRMod
             "<sprite name=\"texVRGlyphs_Unknown\">",         //ExtraSkill4
             "<sprite name=\"texVRGlyphs_Unknown\">",         //PushToTalk
             "<sprite name=\"texVRGlyphs_Unknown\">",         //BuySkill
-            "<sprite name=\"texVRGlyphs_LMenu\">"             //Load (Y in lobby)
+            "<sprite name=\"texVRGlyphs_LMenu\">",             //Load (Y in lobby)
+            "<sprite name=\"texVRGlyphs_LGrip\">+<sprite name=\"texVRGlyphs_RTouchDown\">",   //UseKeyItem (hold left grip + interact button),
+            "<sprite name=\"texVRGlyphs_LGrip\">+<sprite name=\"texVRGlyphs_RStick\">",   //KeyItemNextElement (hold left grip + flick right stick),
+            "<sprite name=\"texVRGlyphs_LGrip\">+<sprite name=\"texVRGlyphs_RStick\">"    //KeyItemPrevElement
         };
 
         private static TMP_SpriteAsset glyphsSpriteAsset;
@@ -211,10 +220,22 @@ namespace VRMod
                     {
                         return currentGlyphs[displayedMap.elementIdentifierId];
                     }
+                    LogUnresolvedOnce(actionName, $"bound to VR element {displayedMap.elementIdentifierId}, which has no glyph");
                 }
+                else LogUnresolvedOnce(actionName, "no VR binding");
             }
 
             return orig(eventSystem, actionName, axisRange, currentInputSource, useLastActiveControllerOnly);
+        }
+
+        private static readonly HashSet<string> unresolvedLogged = new HashSet<string>();
+
+        /// <summary>2.23.28: names any on-screen prompt the VR glyph table cannot answer (it then
+        /// falls back to the game's own lookup, which shows "unmapped").</summary>
+        private static void LogUnresolvedOnce(string actionName, string why)
+        {
+            if (string.IsNullOrEmpty(actionName) || !unresolvedLogged.Add(actionName)) return;
+            VRMod.StaticLogger.LogInfo($"[VR glyph] prompt for action '{actionName}': {why} - showing the game's default.");
         }
 
         private static void ChangedToCustom(On.RoR2.UI.MPEventSystem.orig_OnLastActiveControllerChanged orig, MPEventSystem self, Player player, Controller controller)

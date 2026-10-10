@@ -14,7 +14,7 @@ using UnityEngine.XR.OpenXR.Features;
 [assembly: SecurityPermission(SecurityAction.RequestMinimum, SkipVerification = true)]
 namespace VRMod
 {
-    [BepInPlugin("com.DrBibop.VRMod", "Resurrected VRMod", "1.0.4")]
+    [BepInPlugin("com.DrBibop.VRMod", "Resurrected VRMod", "1.0.5")]
     [BepInDependency("com.Moffein.BanditTweaks", BepInDependency.DependencyFlags.SoftDependency)]
     public class VRMod : BaseUnityPlugin
     {
@@ -32,6 +32,10 @@ namespace VRMod
             VRAssetBundle = AssetBundle.LoadFromMemory(Properties.Resources.vrmodassets);
 
             ModConfig.Init();
+            // 2.23.40: Enforcer holds the shield in the RIGHT hand and the shotgun in the LEFT, so his
+            // triggers and grips are swapped left<->right: right trigger = secondary, left trigger =
+            // primary, left grip = special, right grip = utility.
+            Controllers.AddSkillBindingOverride("Enforcer2Body", RoR2.SkillSlot.Secondary, RoR2.SkillSlot.Primary, RoR2.SkillSlot.Special, RoR2.SkillSlot.Utility);
             ActionAddons.Init();
             SettingsAddon.Init();
             UIFixes.Init();
@@ -41,11 +45,14 @@ namespace VRMod
             LobbyNavigation.Init();
             CameraFixes.Init();
             CutsceneFixes.Init();
+            MappingMode.Init(); // 2.23.27 - form hand rebuild + debug freeze / infinite soul
             ItemDisplayHider.Init();
             MultiplayerMenuNavigation.Init();
+            ModeMenuFixes.Init();
             SelectionFrame.Init();
             VRKeyboard.Init();
             FocusChecker.Init();
+            UIFocusGuard.Init(); // 2.23.46 - clear a stale UI selection that blocks movement after the pause menu
             if (ModConfig.InitialMotionControlsValue)
             {
                 RoR2.RoR2Application.isModded = true;
@@ -205,7 +212,8 @@ namespace VRMod
                     typeof(UnityEngine.XR.OpenXR.Features.Interactions.HTCViveControllerProfile),
                     typeof(UnityEngine.XR.OpenXR.Features.Interactions.HPReverbG2ControllerProfile),
                     typeof(UnityEngine.XR.OpenXR.Features.Interactions.MicrosoftMotionControllerProfile),
-                    typeof(UnityEngine.XR.OpenXR.Features.Interactions.KHRSimpleControllerProfile)
+                    typeof(UnityEngine.XR.OpenXR.Features.Interactions.KHRSimpleControllerProfile),
+                    typeof(global::VRMod.Inputs.SteamFrameControllerProfile)
                 };
 
                 foreach (var profileType in profileTypes)
@@ -214,6 +222,15 @@ namespace VRMod
                     {
                         var profile = (OpenXRFeature)ScriptableObject.CreateInstance(profileType);
                         profile.enabled = true;
+                        if (profileType == typeof(global::VRMod.Inputs.SteamFrameControllerProfile))
+                        {
+                            // Features made at runtime have no extension list (the editor normally fills it),
+                            // so request the Frame controller extension explicitly. Runtimes without it ignore it.
+                            var extField = typeof(OpenXRFeature).GetField("openxrExtensionStrings",
+                                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+                            if (extField != null) extField.SetValue(profile, "XR_VALVE_frame_controller_interaction");
+                            else StaticLogger.LogWarning("  SteamFrame profile: openxrExtensionStrings field not found");
+                        }
                         features.Add(profile);
                         StaticLogger.LogInfo($"  Created profile: {profileType.Name}");
                     }

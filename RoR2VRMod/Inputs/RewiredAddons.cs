@@ -47,6 +47,9 @@ namespace VRMod
                     new ControllerElementIdentifier(30, "PushToTalk", "", "", ControllerElementType.Button, true),
                     new ControllerElementIdentifier(31, "BuySkill", "", "", ControllerElementType.Button, true),
                     new ControllerElementIdentifier(32, "Load", "", "", ControllerElementType.Button, true),
+                    new ControllerElementIdentifier(33, "UseKeyItem", "", "", ControllerElementType.Button, true),
+                    new ControllerElementIdentifier(34, "KeyItemNextElement", "", "", ControllerElementType.Button, true),
+                    new ControllerElementIdentifier(35, "KeyItemPrevElement", "", "", ControllerElementType.Button, true),
                 },
                 new int[] { },
                 new int[] { },
@@ -240,7 +243,10 @@ namespace VRMod
                 new ActionElementMap(102, ControllerElementType.Button, 28, Pole.Positive, AxisRange.Full, false), //ExtraSkill3
                 new ActionElementMap(103, ControllerElementType.Button, 29, Pole.Positive, AxisRange.Full, false), //ExtraSkill4
                 new ActionElementMap(351, ControllerElementType.Button, 30, Pole.Positive, AxisRange.Full, false), //PushToTalk
-                new ActionElementMap(400, ControllerElementType.Button, 31, Pole.Positive, AxisRange.Full, false) //BuySkill
+                new ActionElementMap(400, ControllerElementType.Button, 31, Pole.Positive, AxisRange.Full, false), //BuySkill
+                new ActionElementMap(44, ControllerElementType.Button, 33, Pole.Positive, AxisRange.Full, false), //UseKeyItem (left grip + right A combo)
+                new ActionElementMap(47, ControllerElementType.Button, 34, Pole.Positive, AxisRange.Full, false), //KeyItemChangeElement + (next)
+                new ActionElementMap(47, ControllerElementType.Button, 35, Pole.Negative, AxisRange.Full, false) //KeyItemChangeElement - (previous)
             };
 
             ControllerGlyphs.RegisterFallbackBindings(defaultElementMaps);
