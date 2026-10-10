@@ -68,7 +68,8 @@ Bindings are built in (this build does not use the SteamVR binding editor). Butt
 | Y (hold) | Scoreboard / profile |
 | Left stick click | Sprint (or turn on **Auto Sprint** in the VR settings to sprint automatically) |
 | Right stick click | Ping |
-**Key items and elements (Hallowed Concepts content)** — the left grip doubles as a modifier. Hold it and press another button; the grip's own skill (Utility) only fires if you release the grip *without* using a combo, so nothing goes off by accident.
+
+**Key items and elements (Hallowed Concepts content)** — the left grip doubles as a modifier while you are carrying a key item. Hold it and press another button; the grip's own skill (Utility) then fires when you *release* the grip, and only if no combo was used during the hold, so nothing goes off by accident. Without a key item the grip, A and stick behave exactly as normal.
 
 | Input | Action |
 |---|---|
@@ -77,11 +78,21 @@ Bindings are built in (this build does not use the SteamVR binding editor). Butt
 | Left grip (hold) + right stick right | Next element |
 | Left grip (release, no combo used) | Utility skill, as normal |
 
-The wrist panel on your left hand shows the key item you are carrying and the current element.
+While the grip is held, A does not interact and the right stick does not turn. The wrist panel on your left hand shows the key item you are carrying and reminds you of the buttons.
 
-**Vive / WMR wands** — these controllers have no A/B/X/Y, so the trackpad stands in: right trackpad **down** = A, **right** = B, left trackpad **down** = X, **up** = Y (tap or hold). Key item is therefore left grip + right trackpad down. Clicking the trackpad centre is the stick click.
+**HTC Vive / original Windows Mixed Reality wands** — these have no A/B/X/Y, so the trackpad clicks and menu buttons stand in (HP Reverb G2 has real A/B buttons and uses the normal layout):
 
-**Steam Frame** — mapped like a Quest/Touch controller; the table above applies as written.
+| Wand input | Acts as |
+|---|---|
+| Right trackpad click, lower half | A (interact / confirm; key item = left grip + this) |
+| Right trackpad click, upper half | B (jump / back) |
+| Left trackpad click, upper half | X (equipment / ready) |
+| Left trackpad click, lower half | Sprint (left stick click) |
+| Right menu button | Ping (right stick click) |
+| Left menu button | Y (tap = pause menu, hold = scoreboard) |
+| Right trackpad swipe left / right while holding left grip | Previous / next element |
+
+**Steam Frame** — mapped like a Quest/Touch controller: right A = A, right Y = B, left D-pad down = X, left D-pad up = Y, left View button = menu; sticks, triggers and grips are the same.
 
 **Enforcer** — this survivor alone has the grips and triggers swapped so the shield is on the shield hand and the shotgun on the gun hand:
 
