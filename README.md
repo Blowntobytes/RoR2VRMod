@@ -142,6 +142,7 @@ Open the in-game *Settings* and pick the **VR** tab (the same options are in `Be
 - Hand models are not shown inside menus (menus are navigated like a gamepad). Hands and weapons work normally in a run.
 - The hands for the Seekers of the Storm, Alloyed Collective and Hallowed Concepts survivors are generated from the character model at runtime rather than hand-made, so they are functional rather than pretty. Their positions are fixed in the mod and cannot be adjusted by players.
 - The loading screen can sit at 0 % for about 20 seconds before it starts counting. This comes from the FixPluginTypesSerialization dependency on the current game build, not from this mod; it happens with the VR mod disabled too.
+- Playing with vanilla players: the October 2026 game build loads extra unused characters in any modded game, which broke multiplayer with unmodded friends (they could not see you, or got stuck in the pod). This mod corrects that, so with the VR mod installed you can play with vanilla players again; without it, any other mod on its own still has the problem.
 - Bhaptics / Shockwave haptics suit support is still compiled in but has not been tested with this build.
 - Character support from [VRAPI](https://thunderstore.io/package/DrBibop/VRAPI/) (custom survivors with VR hands) is included unchanged and untested.
 

@@ -14,7 +14,7 @@ using UnityEngine.XR.OpenXR.Features;
 [assembly: SecurityPermission(SecurityAction.RequestMinimum, SkipVerification = true)]
 namespace VRMod
 {
-    [BepInPlugin("com.DrBibop.VRMod", "Resurrected VRMod", "1.0.5")]
+    [BepInPlugin("com.DrBibop.VRMod", "Resurrected VRMod", "1.0.6")]
     [BepInDependency("com.Moffein.BanditTweaks", BepInDependency.DependencyFlags.SoftDependency)]
     public class VRMod : BaseUnityPlugin
     {
@@ -37,6 +37,7 @@ namespace VRMod
             // primary, left grip = special, right grip = utility.
             Controllers.AddSkillBindingOverride("Enforcer2Body", RoR2.SkillSlot.Secondary, RoR2.SkillSlot.Primary, RoR2.SkillSlot.Special, RoR2.SkillSlot.Utility);
             ActionAddons.Init();
+            VanillaContentCompat.Init(); // 2.23.48 - load content like vanilla so vanilla players can play with us
             SettingsAddon.Init();
             UIFixes.Init();
             ChestHighlighter.Init();

@@ -2,6 +2,14 @@
 
 This package continues [DrBibop's RoR2VRMod](https://github.com/DrBibop/RoR2VRMod) (MIT), whose own history ends at 2.9.2; its original changelog is kept in the source repository as `CHANGELOG-original-DrBibop.md`. Version numbers restart at 1.0.x for this package.
 
+### 1.0.6
+
+**Fixed**
+- Playing with vanilla (unmodded) players works again on the October 2026 game build. The game now loads extra unused ("junk") characters and skills whenever any mod is installed, which made a modded game's character tables differ from a vanilla player's: vanilla players saw you under the Ready button, got stuck in the escape pod, and the log filled with "malformed packet" errors. The mod now loads content exactly the way the vanilla game does. This affected every modded player on this build, not only this mod, and is fixed whenever this mod is installed.
+
+**Changed**
+- Controls section of the README covers key items, the Vive/WMR wand layout, Steam Frame and the Enforcer button swap.
+
 ### 1.0.5
 
 **New**
