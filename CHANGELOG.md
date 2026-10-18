@@ -2,6 +2,35 @@
 
 This package continues [DrBibop's RoR2VRMod](https://github.com/DrBibop/RoR2VRMod) (MIT), whose own history ends at 2.9.2; its original changelog is kept in the source repository as `CHANGELOG-original-DrBibop.md`. Version numbers restart at 1.0.x for this package.
 
+### 1.1.0
+
+**New**
+- **Rebindable VR controls.** A new **BINDINGS** tab (next to the VR tab in Settings) lets you put every gameplay action on any button: plain presses, two-button combos (hold one button, press another), and separate tap / hold actions on the same button. Click a row, then press the button or combo you want. Prompts and wrist hints follow your bindings. Choices are stored in `[Bindings]` in `VRMod.cfg`; "Reset all bindings" restores the defaults.
+- **Remote-operated drones** (when you are dead in multiplayer and take over a drone): the left stick flies along where you look (forward/back) and strafes left/right, the right grip climbs and the left grip descends. The grips do not fire drone skills while flying.
+- **New VR option "A: Jump when nothing to interact with"** — A interacts as usual, and jumps when there is nothing in reach.
+- **Wrist chat** on the left watch is taller, so more chat history is visible, and new option **"Wrist chat always visible"** (on by default) stops it fading out.
+- **Gamepad / third person:** Auto Sprint now also works with a regular controller (Xbox etc.), and **Y on the gamepad skips the intro cutscene**.
+- **Left-handed mode** now shows the Seekers of the Storm, Alloyed Collective and Hallowed Concepts survivors as an exact mirror image of right-handed mode, and they aim with the left hand.
+- Item hints also work when pinging Bazaar and Crucible terminals. The key item wrist panel shows N'tormat's current page.
+
+**Changed**
+- **Default combos:** the key item modifier moved from the left grip to **X** (hold skills such as Engineer's harpoons work again). **X + B** = use key item, **X + right stick left/right** = previous/next element, **X + A** = switch equipment set.
+- **Enforcer:** the shotgun is always in your dominant hand (right hand by default, left in left-handed mode) and the shield in the other, with the normal trigger/grip layout (dominant trigger = shotgun). The old "Enforcer: Mirror hands" option is gone. Shots and tracers come out of the shotgun, items attached to the shield only show while the shield is raised, and the hand/shotgun/shield positions are re-tuned.
+- **The new survivors always aim with the dominant hand** (right hand in right-handed mode, left hand in left-handed mode), whichever hand holds the weapon.
+- The Eclipse Lite proc flash is disabled in VR.
+
+**Fixed**
+- **Drone flight dove into the ground:** pushing the stick forward always flew down. Sprint (and Auto Sprint) forces a drone downwards in the game's flight code; sprint is now off while flying.
+- **Character select:** after picking a survivor the loadout could not be selected or scrolled until you went back and picked again (the menu was left with nothing selected). Fixed.
+- **Drone picker and item / Command pickers:** the highlight kept jumping back to the first entry, mostly with a gamepad or in multiplayer. Fixed.
+- **Wrist chat:** no longer flickers or jumps to a random part of the chat history when you turn your wrist.
+- **Projectiles that came from above your head** now come out of your hand: Seeker's Spirit Punch (no more aiming low), False Son's Laser of the Father (now clearly visible from the hand), Engineer's Laser Cutter beams; Seeker's Palm Blast charge/flash is on the hand.
+- BINDINGS tab: stick directions are written out ("R stick left/right") instead of showing "?"; the VR and BINDINGS tabs scroll correctly to the selected row.
+
+**Known issues**
+- Switching left/right-handed mode in the middle of a run can leave held weapons see-through or firing from the wrong spot — restart the run after switching.
+- When you join someone else's game as a client, skills that the host spawns for you (for example Seeker's Palm Blast) start at your character's head height instead of your hand.
+
 ### 1.0.6
 
 **Fixed**

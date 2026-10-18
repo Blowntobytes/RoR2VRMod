@@ -81,6 +81,21 @@ namespace VRMod
 
         private static bool introSkipPrevPressed;
 
+        /// <summary>Y (top face button) on any connected gamepad, via Rewired's gamepad template.</summary>
+        private static bool GamepadYHeld()
+        {
+            try
+            {
+                foreach (Rewired.Joystick j in Rewired.ReInput.controllers.Joysticks)
+                {
+                    Rewired.IGamepadTemplate g = j.GetTemplate<Rewired.IGamepadTemplate>();
+                    if (g != null && g.actionTopRow2 != null && g.actionTopRow2.value) return true;
+                }
+            }
+            catch { }
+            return false;
+        }
+
         private static void SetupIntro(On.RoR2.StartEvent.orig_Start orig, StartEvent self)
         {
             orig(self);
@@ -105,6 +120,8 @@ namespace VRMod
                     bool pressed = false;
                     if (leftHand.isValid)
                         leftHand.TryGetFeatureValue(UnityEngine.XR.CommonUsages.secondaryButton, out pressed);
+                    // 2.24.31: Y on a gamepad (Xbox controller in third person / no motion controllers) too.
+                    if (!pressed) pressed = GamepadYHeld();
 
                     if (pressed && !introSkipPrevPressed)
                     {

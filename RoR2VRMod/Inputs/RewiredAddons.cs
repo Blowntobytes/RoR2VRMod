@@ -244,7 +244,7 @@ namespace VRMod
                 new ActionElementMap(103, ControllerElementType.Button, 29, Pole.Positive, AxisRange.Full, false), //ExtraSkill4
                 new ActionElementMap(351, ControllerElementType.Button, 30, Pole.Positive, AxisRange.Full, false), //PushToTalk
                 new ActionElementMap(400, ControllerElementType.Button, 31, Pole.Positive, AxisRange.Full, false), //BuySkill
-                new ActionElementMap(44, ControllerElementType.Button, 33, Pole.Positive, AxisRange.Full, false), //UseKeyItem (left grip + right A combo)
+                new ActionElementMap(44, ControllerElementType.Button, 33, Pole.Positive, AxisRange.Full, false), //UseKeyItem (left X + right A combo)
                 new ActionElementMap(47, ControllerElementType.Button, 34, Pole.Positive, AxisRange.Full, false), //KeyItemChangeElement + (next)
                 new ActionElementMap(47, ControllerElementType.Button, 35, Pole.Negative, AxisRange.Full, false) //KeyItemChangeElement - (previous)
             };

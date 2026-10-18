@@ -14,7 +14,9 @@ namespace VRMod
     ///     which gives the form its own "Body_Form" config section (see RuntimeHands.FormConfigName).
     ///
     /// Only while RuntimeHandsDebug is on:
-    ///   * Freeze: hold BOTH grips and click the LEFT stick to toggle game time to zero (solo only).
+    ///   * Freeze: hold BOTH grips and click the LEFT stick (solo only). 2.24.20: by default only the
+    ///     world freezes (enemy AI + directors off, god mode) and the character keeps running;
+    ///     'Freeze keeps your character moving' = false gives the old full time stop.
     ///     Enemies, projectiles and transformation timers stop; head and hand tracking, rendering and
     ///     the 3-second live config reload keep running, so hand offsets can be tuned in peace.
     ///   * Infinite soul: turns on the game's own "acolyte_infinite_soul" console variable so
@@ -64,7 +66,8 @@ namespace VRMod
             }
 
             try { PollFreezeChord(); } catch (System.Exception e) { VRMod.StaticLogger.LogWarning($"[VR mapping] freeze: {e.Message}"); }
-            if (frozen && Time.timeScale != 0f) Time.timeScale = 0f; // something else (pause menu closing) restored it
+            if (frozen && frozenTime && Time.timeScale != 0f) Time.timeScale = 0f; // something else (pause menu closing) restored it
+            if (frozen && !frozenTime) KeepWorldFrozen();
 
             if (!infiniteSoulSet) TryInfiniteSoul();
         }
@@ -174,20 +177,64 @@ namespace VRMod
             return NetworkUser.readOnlyInstancesList.Count <= 1;
         }
 
+        // 2.24.20: "world freeze" - the world stops but the local character keeps running (time scale 1),
+        // so skills / stances like Enforcer's shield can be used while tuning. Server (solo) only:
+        // every non-player master's AI components and all combat directors are disabled, and the
+        // local body is in god mode. Re-applied every tick for anything that spawns meanwhile.
+        private static bool frozenTime;
+        private static readonly System.Collections.Generic.List<Behaviour> disabledByFreeze = new System.Collections.Generic.List<Behaviour>();
+        private static HealthComponent godTarget;
+        private static bool godWasOn;
+
+        private static void KeepWorldFrozen()
+        {
+            if (!UnityEngine.Networking.NetworkServer.active) return;
+            foreach (CombatDirector d in CombatDirector.instancesList)
+                if (d && d.enabled) { d.enabled = false; disabledByFreeze.Add(d); }
+            foreach (CharacterMaster m in CharacterMaster.readOnlyInstancesList)
+            {
+                if (!m || m.playerCharacterMasterController) continue;
+                foreach (RoR2.CharacterAI.BaseAI ai in m.GetComponents<RoR2.CharacterAI.BaseAI>())
+                    if (ai && ai.enabled) { ai.enabled = false; disabledByFreeze.Add(ai); }
+                CharacterBody b = m.GetBody();
+                if (b && b.inputBank) { b.inputBank.moveVector = Vector3.zero; b.inputBank.skill1.PushState(false); b.inputBank.skill2.PushState(false); b.inputBank.skill3.PushState(false); b.inputBank.skill4.PushState(false); b.inputBank.jump.PushState(false); }
+            }
+            CharacterBody me = MotionControls.currentBody;
+            HealthComponent hc = me ? me.healthComponent : null;
+            if (hc != godTarget)
+            {
+                if (godTarget) godTarget.godMode = godWasOn;
+                godTarget = hc;
+                if (hc) { godWasOn = hc.godMode; hc.godMode = true; }
+            }
+        }
+
+        private static void ReleaseWorldFreeze()
+        {
+            foreach (Behaviour b in disabledByFreeze) if (b) b.enabled = true;
+            disabledByFreeze.Clear();
+            if (godTarget) godTarget.godMode = godWasOn;
+            godTarget = null;
+        }
+
         private static void SetFrozen(bool value, string why)
         {
             frozen = value;
             if (frozen)
             {
-                Time.timeScale = 0f;
-                Inputs.KeyItemIndicator.SetStatus("<b>FROZEN</b> (mapping)\n<size=80%>Both grips + left stick: resume</size>");
+                frozenTime = !ModConfig.FreezeKeepsCharacter.Value;
+                if (frozenTime) Time.timeScale = 0f;
+                else KeepWorldFrozen();
+                Inputs.KeyItemIndicator.SetStatus($"<b>FROZEN</b> ({(frozenTime ? "time" : "world - you can move")})\n<size=80%>Both grips + left stick: resume</size>");
             }
             else
             {
-                if (!PauseManager.isPaused) Time.timeScale = 1f;
+                if (frozenTime) { if (!PauseManager.isPaused) Time.timeScale = 1f; }
+                else ReleaseWorldFreeze();
+                frozenTime = false;
                 Inputs.KeyItemIndicator.SetStatus(null);
             }
-            VRMod.StaticLogger.LogInfo($"[VR mapping] {(frozen ? "FROZEN" : "resumed")} ({why}). Config edits still apply every 3 s.");
+            VRMod.StaticLogger.LogInfo($"[VR mapping] {(frozen ? (frozenTime ? "FROZEN (time stopped)" : "FROZEN (world only: enemy AI + directors off, god mode; your character keeps running)") : "resumed")} ({why}). Config edits still apply every 3 s.");
         }
 
         private static void TryInfiniteSoul()

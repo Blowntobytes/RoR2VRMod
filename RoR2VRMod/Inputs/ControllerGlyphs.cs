@@ -45,9 +45,9 @@ namespace VRMod
             "<sprite name=\"texVRGlyphs_Unknown\">",         //PushToTalk
             "<sprite name=\"texVRGlyphs_Unknown\">",         //BuySkill
             "<sprite name=\"texVRGlyphs_LSecondary\">",        //Load (Y in lobby)
-            "<sprite name=\"texVRGlyphs_LGrip\">+<sprite name=\"texVRGlyphs_RPrimary\">",   //UseKeyItem (hold left grip + interact button),
-            "<sprite name=\"texVRGlyphs_LGrip\">+<sprite name=\"texVRGlyphs_RStick\">",   //KeyItemNextElement (hold left grip + flick right stick),
-            "<sprite name=\"texVRGlyphs_LGrip\">+<sprite name=\"texVRGlyphs_RStick\">"    //KeyItemPrevElement
+            "<sprite name=\"texVRGlyphs_LPrimary\">+<sprite name=\"texVRGlyphs_RPrimary\">",   //UseKeyItem (hold left X + interact button),
+            "<sprite name=\"texVRGlyphs_LPrimary\">+<sprite name=\"texVRGlyphs_RStick\">",   //KeyItemNextElement (hold left X + flick right stick),
+            "<sprite name=\"texVRGlyphs_LPrimary\">+<sprite name=\"texVRGlyphs_RStick\">"    //KeyItemPrevElement
         };
 
         internal static readonly string[] viveGlyphs = new string[]
@@ -85,9 +85,9 @@ namespace VRMod
             "<sprite name=\"texVRGlyphs_Unknown\">",         //PushToTalk
             "<sprite name=\"texVRGlyphs_Unknown\">",         //BuySkill
             "<sprite name=\"texVRGlyphs_LMenu\">",             //Load (Y in lobby)
-            "<sprite name=\"texVRGlyphs_LGrip\">+<sprite name=\"texVRGlyphs_RTouchDown\">",   //UseKeyItem (hold left grip + interact button),
-            "<sprite name=\"texVRGlyphs_LGrip\">+<sprite name=\"texVRGlyphs_RTouchHor\">",   //KeyItemNextElement (hold left grip + flick right stick),
-            "<sprite name=\"texVRGlyphs_LGrip\">+<sprite name=\"texVRGlyphs_RTouchHor\">"    //KeyItemPrevElement
+            "<sprite name=\"texVRGlyphs_LTouchPress2\">+<sprite name=\"texVRGlyphs_RTouchDown\">",   //UseKeyItem (hold left pad up + interact),
+            "<sprite name=\"texVRGlyphs_LTouchPress2\">+<sprite name=\"texVRGlyphs_RTouchHor\">",   //KeyItemNextElement (hold left pad up + pad),
+            "<sprite name=\"texVRGlyphs_LTouchPress2\">+<sprite name=\"texVRGlyphs_RTouchHor\">"    //KeyItemPrevElement
         };
 
         internal static readonly string[] wmrGlyphs = new string[]
@@ -125,9 +125,9 @@ namespace VRMod
             "<sprite name=\"texVRGlyphs_Unknown\">",         //PushToTalk
             "<sprite name=\"texVRGlyphs_Unknown\">",         //BuySkill
             "<sprite name=\"texVRGlyphs_LMenu\">",             //Load (Y in lobby)
-            "<sprite name=\"texVRGlyphs_LGrip\">+<sprite name=\"texVRGlyphs_RTouchDown\">",   //UseKeyItem (hold left grip + interact button),
-            "<sprite name=\"texVRGlyphs_LGrip\">+<sprite name=\"texVRGlyphs_RStick\">",   //KeyItemNextElement (hold left grip + flick right stick),
-            "<sprite name=\"texVRGlyphs_LGrip\">+<sprite name=\"texVRGlyphs_RStick\">"    //KeyItemPrevElement
+            "<sprite name=\"texVRGlyphs_LTouchPress2\">+<sprite name=\"texVRGlyphs_RTouchDown\">",   //UseKeyItem (hold left pad up + interact),
+            "<sprite name=\"texVRGlyphs_LTouchPress2\">+<sprite name=\"texVRGlyphs_RStick\">",   //KeyItemNextElement (hold left pad up + stick),
+            "<sprite name=\"texVRGlyphs_LTouchPress2\">+<sprite name=\"texVRGlyphs_RStick\">"    //KeyItemPrevElement
         };
 
         private static TMP_SpriteAsset glyphsSpriteAsset;
@@ -149,6 +149,37 @@ namespace VRMod
             glyphsSpriteAsset = VRMod.VRAssetBundle.LoadAsset<TMP_SpriteAsset>("sprVRGlyphs");
 
             RoR2Application.onUpdate += FindControllerType;
+
+            // Rebindable actions: their prompt glyphs follow the player's chords.
+            Inputs.Bindings.BindingActions.Changed += ApplyBindingGlyphs;
+            ApplyBindingGlyphs();
+        }
+
+        /// <summary>Writes the glyph of every rebindable action into all three layout tables.</summary>
+        internal static void ApplyBindingGlyphs()
+        {
+            foreach (Inputs.Bindings.BindingDef d in Inputs.Bindings.BindingActions.All)
+            {
+                if (d.Element < 0 || d.Element >= standardGlyphs.Length) continue;
+                standardGlyphs[d.Element] = ChordGlyph(d.Current, false, false);
+                if (d.Element < viveGlyphs.Length) viveGlyphs[d.Element] = ChordGlyph(d.Current, true, false);
+                if (d.Element < wmrGlyphs.Length) wmrGlyphs[d.Element] = ChordGlyph(d.Current, false, true);
+            }
+        }
+
+        private static string ChordGlyph(Inputs.Bindings.Chord c, bool vive, bool wmr)
+        {
+            if (c.IsNone) return "<sprite name=\"texVRGlyphs_Unknown\">";
+            // The authored "hold" art for the default scoreboard button.
+            if (!c.HasModifier && c.Mode == Inputs.Bindings.ChordMode.Hold)
+            {
+                if (!vive && !wmr && c.Button == Inputs.Bindings.PhysicalInput.LeftY) return "<sprite name=\"texVRGlyphs_LSecondaryHold\">";
+                if ((vive || wmr) && (c.Button == Inputs.Bindings.PhysicalInput.LeftMenu || c.Button == Inputs.Bindings.PhysicalInput.LeftY)) return "<sprite name=\"texVRGlyphs_LMenuHold\">";
+            }
+            string g = Inputs.Bindings.PhysicalState.Glyph(c.Button, vive, wmr);
+            if (c.HasModifier) g = Inputs.Bindings.PhysicalState.Glyph(c.Modifier, vive, wmr) + "+" + g;
+            if (c.Mode == Inputs.Bindings.ChordMode.Hold) g += "<size=70%>hold</size>";
+            return g;
         }
 
         private static void FindControllerType()

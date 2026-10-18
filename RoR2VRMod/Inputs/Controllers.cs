@@ -162,6 +162,15 @@ namespace VRMod
 
         internal static void ApplyRemaps(string bodyName)
         {
+            // 2.24.27: Enforcer's shotgun is always in the DOMINANT hand (right: shotgun right / shield left;
+            // left-handed: shotgun left / shield right), which is exactly the default dominance layout
+            // (dominant trigger = primary), so no swap override.
+            if (bodyName == "Enforcer2Body")
+            {
+                VRMod.StaticLogger.LogInfo($"Enforcer: shotgun in the {(ModConfig.LeftDominantHand.Value ? "LEFT" : "RIGHT")} (dominant) hand, shield in the other - default trigger/grip layout.");
+                RevertRemap();
+                return;
+            }
             if (!skillBindingOverrides.Exists(x => x.bodyName == bodyName))
             {
                 VRMod.StaticLogger.LogInfo(String.Format("No binding overrides found for \'{0}\'. Using default binding.", bodyName));
@@ -326,9 +335,14 @@ namespace VRMod
         {
             orig(self);
 
-            if (ModConfig.InitialMotionControlsValue && self.inputSource == MPEventSystem.InputSource.Gamepad && self.button)
+            // The game's own rebinding rows edit Rewired keyboard/gamepad maps, which VR does not use;
+            // in VR they only LOOK like they work (the prompts show our glyphs). VR controls are rebound
+            // in the BINDINGS tab, so these are switched off for both sources.
+            if (ModConfig.InitialMotionControlsValue && self.button)
             {
                 self.button.interactable = false;
+                HGButton hg = self.button as HGButton;
+                if (hg) { hg.updateTextOnHover = true; hg.hoverToken = "VR controls are rebound in the BINDINGS tab."; }
                 self.button = null;
             }
         }
@@ -339,21 +353,14 @@ namespace VRMod
             vrUIMap = RewiredAddons.CreateUIMap(vrControllers.id);
             vrGameplayMap = RewiredAddons.CreateGameplayMap(vrControllers.id);
 
+            // Gameplay buttons (elements 6-15, 24, 33-35) are no longer fixed here: they come from the
+            // player's chords in [Bindings] (Inputs/Bindings) and are written by BindingResolver.
+            // Only the sticks and the MENU elements (17-23) stay hard-wired.
             inputs = new BaseInput[]
             {
                 new VectorInput(XRNode.LeftHand, InputHelpers.Axis2D.PrimaryAxis2D, 0, 1),
                 new VectorInput(XRNode.RightHand, InputHelpers.Axis2D.PrimaryAxis2D, 2, 3),
                 new VectorInput(XRNode.LeftHand, InputHelpers.Axis2D.PrimaryAxis2D, 4, 5),
-                new ButtonInput(XRNode.RightHand, InputHelpers.Button.PrimaryButton, 6, ViveOverride.PadClickDown),
-                new ButtonInput(XRNode.RightHand, InputHelpers.Button.SecondaryButton, 7, ViveOverride.PadClickUp),
-                new ButtonInput(XRNode.RightHand, InputHelpers.Button.TriggerButton, 8),
-                new ButtonInput(XRNode.LeftHand, InputHelpers.Button.TriggerButton, 9),
-                new ButtonInput(XRNode.LeftHand, InputHelpers.Button.GripButton, 10),
-                new ButtonInput(XRNode.RightHand, InputHelpers.Button.GripButton, 11),
-                new ButtonInput(XRNode.LeftHand, InputHelpers.Button.PrimaryButton, 12, ViveOverride.PadClickUp),
-                new ButtonInput(XRNode.LeftHand, InputHelpers.Button.Primary2DAxisClick, 13, ViveOverride.PadClickDown),
-                new ButtonInput(XRNode.RightHand, InputHelpers.Button.Primary2DAxisClick, 14, ViveOverride.MenuButton),
-                new HoldableButtonInput(XRNode.LeftHand, InputHelpers.Button.SecondaryButton, 15, ViveOverride.MenuButton),
                 // These elements MUST match ControllerGlyphs.standardGlyphs, which is indexed by element
                 // id and is what the game draws in every on-screen prompt. The OpenXR port wired them to
                 // the wrong physical buttons: the glyph art says 17=A, 19=X, 20/21=triggers, 22/23=grips,
@@ -368,7 +375,6 @@ namespace VRMod
                 new ButtonInput(XRNode.RightHand, InputHelpers.Button.TriggerButton, 21),      // Tab right (right trigger)
                 new ButtonInput(XRNode.LeftHand, InputHelpers.Button.GripButton, 22),          // Submenu left (left grip)
                 new ButtonInput(XRNode.RightHand, InputHelpers.Button.GripButton, 23),         // Submenu right (right grip)
-                new TapButtonInput(XRNode.LeftHand, InputHelpers.Button.SecondaryButton, 24, ViveOverride.MenuButton)      // Pause menu - quick press-and-RELEASE on Y (hold = scoreboard, element 15)
             };
         }
 
@@ -481,25 +487,32 @@ namespace VRMod
             if (VRKeyboard.IsOpen || Time.unscaledTime < suppressGameInputUntil)
             {
                 for (int id = 0; id <= 5; id++) vrControllers.SetAxisValueById(id, 0f);
-                for (int id = 6; id <= Inputs.KeyItemCombo.PrevElement; id++) vrControllers.SetButtonValueById(id, false);
-                Inputs.KeyItemCombo.Reset();
+                for (int id = 6; id <= 35; id++) vrControllers.SetButtonValueById(id, false);
+                Inputs.Bindings.BindingResolver.Reset();
                 VRKeyboard.Tick();
                 return;
             }
 
-            // Key item combo (left grip + right A / right stick) decides first - see KeyItemCombo.
-            Inputs.KeyItemCombo.Poll();
+            // Chords first (they decide what the sticks may do this frame), then sticks + menu buttons.
+            Inputs.Bindings.BindingResolver.Update();
+            Inputs.DroneFlight.Poll();  // 2.23.49 - grips = up/down while flying a remote-op drone
+            Inputs.InteractOrJump.Poll(); // 2.23.51 - A jumps when nothing is in reach (VR setting)
+
+            if (Inputs.Bindings.BindingResolver.Listening)
+            {
+                // Capturing a binding in the settings menu: nothing reaches the game or the menu.
+                for (int id = 0; id <= 5; id++) vrControllers.SetAxisValueById(id, 0f);
+                for (int id = 6; id <= 35; id++) vrControllers.SetButtonValueById(id, false);
+                return;
+            }
 
             foreach (BaseInput input in inputs)
             {
-                if (lobbyActive && input is Inputs.ButtonInput bi && (bi.ElementId == 24 || bi.ElementId == 15))
-                    continue;
-                if (Inputs.KeyItemCombo.Owns(input))
-                    continue;
                 input.UpdateValues(vrControllers);
             }
 
-            Inputs.KeyItemCombo.Apply(vrControllers);
+            Inputs.Bindings.BindingResolver.Apply(vrControllers, lobbyActive);
+            Inputs.DroneFlight.Apply(vrControllers);
 
             foreach (BaseInput input in modInputs)
             {
@@ -555,14 +568,18 @@ namespace VRMod
         {
             if (!ModConfig.AutoSprint.Value || vrControllers == null || !RoR2.Run.instance)
                 return;
+            if (Inputs.DroneFlight.Active) return; // 2.24.27: sprint = dive in the game's PlayerFlyState
 
             UnityEngine.XR.InputDevice leftHand = UnityEngine.XR.InputDevices.GetDeviceAtXRNode(UnityEngine.XR.XRNode.LeftHand);
-            if (!leftHand.isValid)
-                return;
-
             Vector2 stick;
-            if (!leftHand.TryGetFeatureValue(UnityEngine.XR.CommonUsages.primary2DAxis, out stick))
-                return;
+            if (!leftHand.isValid || !leftHand.TryGetFeatureValue(UnityEngine.XR.CommonUsages.primary2DAxis, out stick))
+            {
+                // 2.24.31: no motion controller (gamepad, e.g. third person with an Xbox controller):
+                // read the game's own move axes (Rewired actions 0/1) instead.
+                Player gp = GamepadPlayer();
+                if (gp == null) return;
+                stick = new Vector2(gp.GetAxis(0), gp.GetAxis(1));
+            }
 
             bool moving = stick.sqrMagnitude > 0.04f; // ~0.2 deadzone
 
@@ -665,10 +682,21 @@ namespace VRMod
         /// Reads the XR hardware state directly so auto sprint can yield to attacks regardless of
         /// which skill is bound to which button.
         /// </summary>
+        private static Player GamepadPlayer()
+        {
+            try { LocalUser u = LocalUserManager.GetFirstLocalUser(); return u != null ? u.inputPlayer : null; }
+            catch { return null; }
+        }
+
         private static bool IsAnySkillButtonHeld()
         {
             try
             {
+                // 2.24.31: gamepad / any controller - the game's skill actions (7-10) themselves.
+                Player gp = GamepadPlayer();
+                if (gp != null && (gp.GetButton(7) || gp.GetButton(8) || gp.GetButton(9) || gp.GetButton(10)))
+                    return true;
+
                 UnityEngine.XR.InputDevice left = UnityEngine.XR.InputDevices.GetDeviceAtXRNode(UnityEngine.XR.XRNode.LeftHand);
                 UnityEngine.XR.InputDevice right = UnityEngine.XR.InputDevices.GetDeviceAtXRNode(UnityEngine.XR.XRNode.RightHand);
 

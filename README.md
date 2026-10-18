@@ -49,7 +49,7 @@ Do **not** turn on the old "Use Oculus mode" config option — it is a leftover 
 
 ## Controls
 
-Bindings are built in (this build does not use the SteamVR binding editor). Button names follow the Oculus/Quest layout; on Index, Vive and WMR controllers the equivalent buttons are used.
+These are the default bindings (this build does not use the SteamVR binding editor). Every gameplay action can be moved to another button or combo in the **BINDINGS** tab of the in-game Settings (see below). Button names follow the Oculus/Quest layout; on Index, Vive and WMR controllers the equivalent buttons are used.
 
 **Gameplay** (right-handed; turn on "Left dominant hand" in the VR settings to swap the skill buttons)
 
@@ -69,41 +69,34 @@ Bindings are built in (this build does not use the SteamVR binding editor). Butt
 | Left stick click | Sprint (or turn on **Auto Sprint** in the VR settings to sprint automatically) |
 | Right stick click | Ping |
 
-**Key items and elements (Hallowed Concepts content)** — the left grip doubles as a modifier while you are carrying a key item. Hold it and press another button; the grip's own skill (Utility) then fires when you *release* the grip, and only if no combo was used during the hold, so nothing goes off by accident. Without a key item the grip, A and stick behave exactly as normal.
+**Combos with X (key items, equipment sets)** — X uses your equipment when tapped on its own; held, it works as a modifier for the combos below. A combo also works if you press both buttons within a fraction of a second, in either order.
 
 | Input | Action |
 |---|---|
-| Left grip (hold) + A | Use the key item |
-| Left grip (hold) + right stick left | Previous element |
-| Left grip (hold) + right stick right | Next element |
-| Left grip (release, no combo used) | Utility skill, as normal |
+| X (hold) + B | Use the key item (Hallowed Concepts) |
+| X (hold) + right stick left / right | Previous / next element |
+| X (hold) + A | Switch equipment set (with an item that gives a second equipment set) |
 
-While the grip is held, A does not interact and the right stick does not turn. The wrist panel on your left hand shows the key item you are carrying and reminds you of the buttons.
+The wrist panel on your left hand shows the key item you are carrying (and N'tormat's current page) and reminds you of the buttons.
+
+**Remote-operated drones** (after you die in multiplayer and take over a drone): the left stick flies along where you look (forward/back) and strafes left/right, the right grip climbs, the left grip descends. The grips do not fire drone skills while flying.
 
 **HTC Vive / original Windows Mixed Reality wands** — these have no A/B/X/Y, so the trackpad clicks and menu buttons stand in (HP Reverb G2 has real A/B buttons and uses the normal layout):
 
 | Wand input | Acts as |
 |---|---|
-| Right trackpad click, lower half | A (interact / confirm; key item = left grip + this) |
+| Right trackpad click, lower half | A (interact / confirm) |
 | Right trackpad click, upper half | B (jump / back) |
 | Left trackpad click, upper half | X (equipment / ready) |
 | Left trackpad click, lower half | Sprint (left stick click) |
 | Right menu button | Ping (right stick click) |
 | Left menu button | Y (tap = pause menu, hold = scoreboard) |
-| Right trackpad swipe left / right while holding left grip | Previous / next element |
 
 **Steam Frame** — mapped like a Quest/Touch controller: right A = A, right Y = B, left D-pad down = X, left D-pad up = Y, left View button = menu; sticks, triggers and grips are the same.
 
-**Enforcer** — this survivor alone has the grips and triggers swapped so the shield is on the shield hand and the shotgun on the gun hand:
+**Enforcer** — the shotgun is always in your dominant hand and the shield in the other (right-handed: shotgun right, shield left; left-handed: the mirror image). Triggers and grips use the normal layout: the dominant trigger fires the shotgun, and Protect and Serve (raise the shield) is on the grip of the shield hand. Shots come out of the shotgun. The shield, and any items attached to it, are only drawn while it is raised; its transparency is the **Enforcer: Shield opacity** slider in the VR settings.
 
-| Input | Action |
-|---|---|
-| Left trigger | Primary (shotgun) |
-| Right trigger | Secondary |
-| Left grip | Special |
-| Right grip | Utility (Protect and Serve — raise the shield) |
-
-The shield is only drawn while raised; its transparency is the **Enforcer: Shield opacity** slider in the VR settings. Left/right dominant hand still applies on top of this.
+**Left-handed mode** — turn on "Left dominant hand" in the VR settings. The skill buttons swap sides, and the Seekers of the Storm, Alloyed Collective and Hallowed Concepts survivors become an exact mirror image of right-handed mode, aiming with the left hand. Restart the run after switching (switching mid-run can leave weapons see-through or firing from the wrong spot).
 
 **Menus** — the controllers act as a gamepad, and every on-screen prompt names the button that really does it (A is A, the trigger glyph means the trigger):
 
@@ -116,7 +109,7 @@ The shield is only drawn while raised; its transparency is the **Enforcer: Shiel
 | Left trigger | Back to the survivor grid (previous page) |
 | Right trigger | Forward to the panels on the right — expansions / DLC, artifacts (next page) |
 | Left grip / right grip | Previous / next tab in the settings panel. Nothing anywhere else — they cannot trigger anything by accident on the character select screen |
-| Y | Open / close the pause menu, skip the intro cutscene |
+| Y | Open / close the pause menu, skip the intro cutscene (also Y on a gamepad) |
 
 On the character select screen, A picks the highlighted survivor; the **Ready** button then becomes the highlighted control, so press A again (or move to it with the stick) to ready up. One press never does both. Up/down on the rules panel walks Difficulty → Expansions → Artifacts; A on the Expansions or Artifacts header opens that picker.
 
@@ -124,11 +117,24 @@ On the character select screen, A picks the highlighted survivor; the **Ready** 
 
 **Chat:** click the left stick on the character select screen (or in a run while the game is paused) to open the keyboard on the chat box. B or DONE sends the message; B with nothing typed just closes it. The highlight returns to the menu afterwards.
 
+## Rebinding (BINDINGS tab)
+
+In the in-game *Settings*, the **BINDINGS** tab (to the right of **VR**) lists every gameplay action. Select a row and press A, release everything, then press the button you want:
+
+- **A single button** — just press it.
+- **A combo** — hold the first button (the modifier) and press the second.
+- **Tap or hold** — release within about half a second for a tap binding, keep holding for a hold binding (Y is tap = pause menu, hold = scoreboard by default).
+- A flick of a stick (for example "R stick right") can be bound too.
+
+Conflicts are flagged on the row. **Reset all bindings** restores the defaults. The choices are saved in the `[Bindings]` section of `VRMod.cfg`; `default` means the built-in layout for your controller. The game's own Keyboard + Mouse and Controller binding pages are not used for VR controls.
+
 ## VR settings
 
 Open the in-game *Settings* and pick the **VR** tab (the same options are in `BepInEx/config/VRMod.cfg`, editable from the mod manager's Config editor). Notable options in this build:
 
-- **Auto Sprint** — *On by default* - sprint automatically whenever you push the left stick, and re-engage on its own after anything cancels the sprint (firing a skill, taking a hit).
+- **Auto Sprint** — *On by default* - sprint automatically whenever you push the left stick, and re-engage on its own after anything cancels the sprint (firing a skill, taking a hit). Also works with a regular gamepad.
+- **A: Jump when nothing to interact with** — A interacts as usual and jumps when nothing is in reach.
+- **Wrist chat always visible** — *On by default* keeps the chat on your left watch readable instead of fading out.
 - **Highlight chests** — Chest, teleporters, shrines will have a yellow glow for easy locating.
 - **Item hints** — *On by default* When pinging an item or scrolling through items in a command run, item name and info will be included on your left wrist or at the bottom of the item panel.
 - **Seated mode** — *On by default* Because who wants to stand when playing this game? You can disable it to switch to standing mode but you'll have to restart the game to apply.

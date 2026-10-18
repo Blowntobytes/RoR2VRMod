@@ -398,12 +398,22 @@ namespace VRMod
                 // correct (Chef: cleaver on Wrist_L, pizza cutter on Wrist_R), and each hand is
                 // then tuned with its own independent config entries.
                 bool controllerIsLeft = controller.xrNode == XRNode.LeftHand;
-                bool useRightArm = !controllerIsLeft;
+                // 2.23.51: "Enforcer: Mirror hands" swaps the arms between the controllers. The left
+                // controller then carries the model's RIGHT arm (shield) exactly as the right hand
+                // would, but under the left root's negative X scale - a perfect mirror image - and
+                // the right controller carries the left arm (shotgun) mirrored the same way. Each
+                // arm keeps its own tuned pose values, which the mirror then reflects.
+                // 2.24.31: left-handed play shows every runtime-hand survivor as the exact MIRROR IMAGE of
+                // right-handed play (the arms swap controllers). Right-handed: Enforcer is mirrored (shotgun
+                // arm to the right controller), everyone else is not; left-handed flips that.
+                bool baseMirror = bodyName.StartsWith("Enforcer2Body");
+                bool mirrorSides = baseMirror != ModConfig.LeftDominantHand.Value;
+                bool useRightArm = mirrorSides ? controllerIsLeft : !controllerIsLeft;
 
                 // The left HandController root carries a negative X scale, which exists to mirror
                 // the authored right-arm hand models. An arm baked from the left side is already
                 // correct, so that mirror is cancelled on the mesh.
-                bool cancelParentMirror = controllerIsLeft;
+                bool cancelParentMirror = !useRightArm;
 
                 // Only the character's OWN skeleton is a valid source for the hand bone. Item
                 // displays parented into the model bring their own rigs along (a glove item has a
@@ -508,7 +518,7 @@ namespace VRMod
                 alignerComp.autoAlign = autoAlign;
                 alignerComp.bodyName = bodyName;
                 alignerComp.aimRoot = aimRoot.transform;
-                alignerComp.isLeftHand = controllerIsLeft;
+                alignerComp.isLeftHand = !useRightArm; // the ARM's native side picks the tuned values (mirror swaps arms, not values)
                 // Cancel the controller's mirror on the MESH only, so a natively-left arm renders
                 // the right way round. The aim root stays in the mirrored space so the shared aim
                 // values behave the same on both hands.
@@ -556,7 +566,7 @@ namespace VRMod
 
                 root.transform.SetParent(controller.transform, false);
 
-                if (ModConfig.HandTuningEnabled || ModConfig.RuntimeHandsDebug.Value) VRMod.StaticLogger.LogInfo($"[VR hands] Runtime hand built for '{bodyName}' [{(controllerIsLeft ? "LEFT" : "RIGHT")} controller] from bone '{handBone.name}' ({boneSet.Count} bones, {rendererInfos.Count} renderer info(s) wired to the game's material pipeline){(cancelParentMirror ? ", un-mirrored" : "")}. Tune offsets in config section '{ModConfig.CharacterSection(bodyName)}'.");
+                if (ModConfig.HandTuningEnabled || ModConfig.RuntimeHandsDebug.Value) VRMod.StaticLogger.LogInfo($"[VR hands] Runtime hand built for '{bodyName}' [{(controllerIsLeft ? "LEFT" : "RIGHT")} controller] from bone '{handBone.name}' ({boneSet.Count} bones, {rendererInfos.Count} renderer info(s) wired to the game's material pipeline){(cancelParentMirror ? ", un-mirrored" : "")}{(mirrorSides ? ", MIRRORED sides" : "")}. Tune offsets in config section '{ModConfig.CharacterSection(bodyName)}'.");
 
                 return hand;
             }
@@ -1686,6 +1696,25 @@ namespace VRMod
         private static readonly Dictionary<MeshRenderer, Material> transparentSource = new Dictionary<MeshRenderer, Material>();
         internal Transform axisGizmo;
         internal Transform weaponGizmo;
+        // "Rotate around mesh centre": mesh bounds centres in the hand transform's / weapon root's local space.
+        private Vector3? handCenter, weaponCenter;
+
+        private static Vector3? MeshCenterIn(Transform space)
+        {
+            bool any = false; Bounds b = new Bounds();
+            foreach (MeshFilter mf in space.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (!mf.sharedMesh || mf.GetComponentInParent<LineRenderer>()) continue;
+                Bounds mb = mf.sharedMesh.bounds;
+                for (int i = 0; i < 8; i++)
+                {
+                    Vector3 corner = mb.center + Vector3.Scale(mb.extents, new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+                    Vector3 local = space.InverseTransformPoint(mf.transform.TransformPoint(corner));
+                    if (!any) { b = new Bounds(local, Vector3.zero); any = true; } else b.Encapsulate(local);
+                }
+            }
+            return any ? b.center : (Vector3?)null;
+        }
         private RuntimeHands.RotEntry handRot, aimRot, weaponRot;
         private Quaternion bakedHand;
         private float nextReload;
@@ -1748,7 +1777,13 @@ namespace VRMod
                         names.Append(r.name).Append(' ');
                         if (r.name.ToLowerInvariant().Contains("shield")) { shieldRenderers.Add(r); allShieldRenderers.Add(r); }
                     }
-                    VRMod.StaticLogger.LogInfo($"[VR hands] Enforcer {side.ToUpperInvariant()} held parts: {names}- {shieldRenderers.Count} shield part(s) shown only while shielding.");
+                    // 2.24.26: everything else held with the shield (item displays such as Bison Steak) is
+                    // shown only while shielding too. Visibility only - the opacity slider stays shield-only.
+                    int extra = 0;
+                    if (shieldRenderers.Count > 0)
+                        foreach (MeshRenderer r in weaponSpace.GetComponentsInChildren<MeshRenderer>(true))
+                            if (!shieldRenderers.Contains(r)) { shieldRenderers.Add(r); extra++; }
+                    VRMod.StaticLogger.LogInfo($"[VR hands] Enforcer {side.ToUpperInvariant()} held parts: {names}- {shieldRenderers.Count - extra} shield part(s) + {extra} part(s) held with it, shown only while shielding.");
                 }
                 if (ModConfig.HandTuningEnabled || ModConfig.RuntimeHandsDebug.Value) VRMod.StaticLogger.LogInfo($"[VR hands] '{bodyName}' {side.ToUpperInvariant()} hand carries a weapon part: offsets Pos({weapon[0].Value:F2}, {weapon[1].Value:F2}, {weapon[2].Value:F2}) Rot({weapon[3].Value:F0}, {weapon[4].Value:F0}, {weapon[5].Value:F0}). Edit '{bodyName}_{RuntimeHands.WeaponKeyPrefix(bodyName, isLeftHand)}*' in the config (edits apply within 5 s while in game).");
             }
@@ -1829,11 +1864,25 @@ namespace VRMod
             transform.localRotation = cancel * handRot.Value * autoAlign;
             // 2.23.36: position offsets move along the gizmo's red/green/blue lines (cancel frame).
             transform.localPosition = cancel * new Vector3(posX.Value, posY.Value, posZ.Value);
+            Vector3 handPivot = transform.localPosition;
+            if (ModConfig.MeshPivotFor(bodyName))
+            {
+                // 2.24.24: rotation offsets turn the hand about its mesh centre. At Rot X/Y/Z = 0 the
+                // hand sits exactly where it did; the centre is fixed in the base-pose frame.
+                if (handCenter == null) handCenter = MeshCenterIn(transform);
+                if (handCenter != null)
+                {
+                    Vector3 cs = Vector3.Scale(transform.localScale, handCenter.Value);
+                    Quaternion baseRot = cancel * handRot.Base * autoAlign;
+                    handPivot = transform.localPosition + baseRot * cs;
+                    transform.localPosition = handPivot - transform.localRotation * cs;
+                }
+            }
             if (axisGizmo)
             {
                 // Zero-pose frame: X turns about this red line from the stored pose.
                 axisGizmo.localRotation = cancel * handRot.Base;
-                axisGizmo.localPosition = transform.localPosition;
+                axisGizmo.localPosition = handPivot;
             }
 
             // The left HandController root carries a negative X scale (it exists to mirror the
@@ -1867,10 +1916,22 @@ namespace VRMod
             {
                 weaponRoot.localPosition = new Vector3(weapon[0].Value, weapon[1].Value, weapon[2].Value);
                 weaponRoot.localRotation = weaponRot != null ? weaponRot.Value : RuntimeHands.Compose(weapon[3].Value, weapon[4].Value, weapon[5].Value);
+                Vector3 weaponPivot = weaponRoot.localPosition;
+                if (ModConfig.MeshPivotFor(bodyName) && weaponRot != null)
+                {
+                    // 2.24.24: Weapon Rot X/Y/Z turn the weapon about the centre of its mesh.
+                    if (weaponCenter == null) weaponCenter = MeshCenterIn(weaponRoot);
+                    if (weaponCenter != null)
+                    {
+                        Vector3 cs = Vector3.Scale(weaponRoot.localScale, weaponCenter.Value);
+                        weaponPivot = weaponRoot.localPosition + weaponRot.Base * cs;
+                        weaponRoot.localPosition = weaponPivot - weaponRoot.localRotation * cs;
+                    }
+                }
                 if (weaponGizmo)
                 {
                     // 2.23.38: drawn AT the weapon's pivot (it was at the hand, up to a metre away).
-                    weaponGizmo.localPosition = weaponRoot.localPosition;
+                    weaponGizmo.localPosition = weaponPivot;
                     weaponGizmo.localRotation = weaponRot != null ? weaponRot.Base : Quaternion.identity;
                 }
             }

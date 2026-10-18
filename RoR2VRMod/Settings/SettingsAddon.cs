@@ -60,10 +60,10 @@ namespace VRMod
         private static void ScrollToButton(On.RoR2.UI.HGButton.orig_OnSelect orig, HGButton self, BaseEventData eventData)
         {
             orig(self, eventData);
-            if (self.gameObject.name.Contains("VRModSetting"))
+            if (self.gameObject.name.Contains("VRModSetting") || self.gameObject.name.Contains("VRModBinding"))
             {
                 HGScrollRectHelper scrollHelper = self.GetComponentInParent<HGScrollRectHelper>();
-                scrollHelper.ScrollToShowMe(self);
+                if (scrollHelper) scrollHelper.ScrollToShowMe(self);
             }
         }
 
@@ -229,19 +229,14 @@ namespace VRMod
             }
 
             GameObject subPanelInstance = SetupSubPanel(subPanelArea);
+            GameObject headerInstance = SetupHeader(header, "VR");
+            controller.headers.Add(MakeHeader(headerInstance, "VR", subPanelInstance));
 
-            GameObject headerInstance = SetupHeader(header);
-
-            LanguageTextMeshController text = headerInstance.GetComponent<LanguageTextMeshController>();
-            text.token = "VR";
-
-            HGHeaderNavigationController.Header headerInfo = new HGHeaderNavigationController.Header();
-            headerInfo.headerButton = headerInstance.GetComponent<HGButton>();
-            headerInfo.headerName = "VR";
-            headerInfo.tmpHeaderText = headerInstance.GetComponentInChildren<HGTextMeshProUGUI>();
-            headerInfo.headerRoot = subPanelInstance;
-
-            controller.headers.Add(headerInfo);
+            // Second tab: VR control bindings (click a row, press the new chord).
+            GameObject bindingsPanel = SetupBindingsSubPanel(subPanelArea);
+            GameObject bindingsHeader = SetupHeader(header, "BINDINGS");
+            bindingsHeader.transform.SetSiblingIndex(headerInstance.transform.GetSiblingIndex() + 1);
+            controller.headers.Add(MakeHeader(bindingsHeader, "BINDINGS", bindingsPanel));
 
             string headerNames = string.Join(", ", controller.headers.ConvertAll(h => h.headerName).ToArray());
             VRMod.StaticLogger.LogInfo($"[VR settings] VR tab added ({controller.headers.Count} headers now: {headerNames}).");
@@ -399,20 +394,72 @@ namespace VRMod
             // are no longer shown (the action itself still exists for the input side).
 
             subPanelInstance.transform.Find("Scroll View").gameObject.AddComponent<ScrollToSelection>();
+            EnsureScrollable(instanceLayout);
 
             return subPanelInstance;
         }
 
-        private static GameObject SetupHeader(Transform parent)
+        /// <summary>The scroll content must size itself to its rows, or rows past the viewport are unreachable.</summary>
+        private static void EnsureScrollable(Transform layout)
+        {
+            if (!layout) return;
+            var fitter = layout.GetComponent<UnityEngine.UI.ContentSizeFitter>();
+            if (!fitter) fitter = layout.gameObject.AddComponent<UnityEngine.UI.ContentSizeFitter>();
+            fitter.verticalFit = UnityEngine.UI.ContentSizeFitter.FitMode.PreferredSize;
+            var group = layout.GetComponent<UnityEngine.UI.VerticalLayoutGroup>();
+            if (group) { group.childForceExpandHeight = false; group.childControlHeight = true; }
+            RectTransform rt = layout as RectTransform;
+            if (rt) { rt.anchorMin = new Vector2(rt.anchorMin.x, 1f); rt.anchorMax = new Vector2(rt.anchorMax.x, 1f); rt.pivot = new Vector2(rt.pivot.x, 1f); }
+        }
+
+        private static GameObject SetupHeader(Transform parent, string name)
         {
             GameObject categoryToInstantiate = parent.Find("GenericHeaderButton (Graphics)").gameObject;
 
             GameObject headerInstance = GameObject.Instantiate(categoryToInstantiate, parent);
 
             headerInstance.transform.SetSiblingIndex(parent.childCount - 2);
-            headerInstance.name = "GenericHeaderButton (VR)";
+            headerInstance.name = "GenericHeaderButton (" + name + ")";
+            headerInstance.GetComponent<LanguageTextMeshController>().token = name;
 
             return headerInstance;
+        }
+
+        private static HGHeaderNavigationController.Header MakeHeader(GameObject headerInstance, string name, GameObject root)
+        {
+            HGHeaderNavigationController.Header headerInfo = new HGHeaderNavigationController.Header();
+            headerInfo.headerButton = headerInstance.GetComponent<HGButton>();
+            headerInfo.headerName = name;
+            headerInfo.tmpHeaderText = headerInstance.GetComponentInChildren<HGTextMeshProUGUI>();
+            headerInfo.headerRoot = root;
+            return headerInfo;
+        }
+
+        private static GameObject SetupBindingsSubPanel(Transform parent)
+        {
+            GameObject template = parent.Find("SettingsSubPanel, Controls (Gamepad)").gameObject;
+            GameObject panel = GameObject.Instantiate(template, parent);
+            panel.name = "SettingsSubPanel, VR Bindings";
+            Transform layout = panel.transform.Find("Scroll View/Viewport/VerticalLayout");
+            foreach (Transform child in layout) GameObject.Destroy(child.gameObject);
+
+            GameObject boolSetting = template.transform.Find("Scroll View/Viewport/VerticalLayout/SettingsEntryButton, Bool (Invert X)").gameObject;
+            LanguageTextMeshController descriptionText = parent.transform.Find("GenericDescriptionPanel/ContentSizeFitter/DescriptionText").GetComponent<LanguageTextMeshController>();
+
+            bool first = true;
+            foreach (Inputs.Bindings.BindingDef def in Inputs.Bindings.BindingActions.All)
+            {
+                BindingRow row = BindingRow.Build(boolSetting, layout, def, descriptionText);
+                HGButton b = row.GetComponent<HGButton>();
+                if (b) { b.defaultFallbackButton = first; first = false; }
+            }
+            BindingRow.Build(boolSetting, layout, null, descriptionText);
+
+            panel.transform.Find("Scroll View").gameObject.AddComponent<ScrollToSelection>();
+            EnsureScrollable(layout);
+            panel.AddComponent<BindingsPanelDiagnostics>();
+            panel.SetActive(false);
+            return panel;
         }
     }
 }

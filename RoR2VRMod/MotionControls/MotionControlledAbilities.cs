@@ -128,6 +128,10 @@ namespace VRMod
             On.EntityStates.BaseState.GetAimRay += EditAimray;
 
             On.EntityStates.GenericBulletBaseState.FireBullet += ForceShotgunMuzzle;
+            On.EntityStates.GenericBulletBaseState.OnEnter += SetEnforcerShotgunMuzzle;           // 2.24.11
+            On.EntityStates.Seeker.BaseChargePalmBlast.SpawnChargeVfx += SetPalmBlastChargeMuzzle; // 2.24.11
+            On.EntityStates.Seeker.BaseFirePalmBlast.FireProjectile += SetPalmBlastMuzzle;        // 2.24.11
+            On.EntityStates.Seeker.SpiritPunch.FireGauntlet += SetSpiritPunchMuzzle;              // 2.24.30
 
             On.EntityStates.GenericBulletBaseState.GenerateBulletAttack += ChangeShotgunMuzzle;
             On.EntityStates.GenericProjectileBaseState.FireProjectile += SetFMJMuzzle;
@@ -329,6 +333,78 @@ namespace VRMod
                 self.muzzleName = "MuzzleLeft";
             }
             orig(self, aimRay);
+        }
+
+        // ---- 2.24.11: Enforcer riot shotgun / Seeker palm blast fire from the hand that holds them ----
+
+        /// <summary>
+        /// Enforcer holds the shotgun in the LEFT controller (RIGHT with "Enforcer: Mirror hands"); the
+        /// dominant/non-dominant naming of the hand muzzles follows the left-dominant setting.
+        /// </summary>
+        private static bool EnforcerShotgunOnLeft => !ModConfig.EnforcerMirrored;
+        private static string EnforcerShotgunMuzzleName =>
+            EnforcerShotgunOnLeft == ModConfig.LeftDominantHand.Value ? "CurrentDominantMuzzle" : "CurrentNonDominantMuzzle";
+
+        /// <summary>
+        /// FireRiotShotgun(Shielded) is a GenericBulletBaseState: the bullet starts at GetAimRay (fixed
+        /// in EditAimray) but its tracer, muzzle flash and muzzleTransform come from the model's shotgun
+        /// muzzle (ChildLocator by muzzleName) - on the hidden first-person model that sits at the hips.
+        /// Set before orig so FindModelChild(muzzleName) resolves to the shotgun hand too.
+        /// </summary>
+        private static void SetEnforcerShotgunMuzzle(On.EntityStates.GenericBulletBaseState.orig_OnEnter orig, EntityStates.GenericBulletBaseState self)
+        {
+            try
+            {
+                if (self is EntityStates.Enforcer.FireRiotShotgunBase && self.characterBody && self.characterBody.IsLocalBody())
+                    self.muzzleName = EnforcerShotgunMuzzleName;
+            }
+            catch (Exception e) { VRMod.StaticLogger.LogWarning("[VR hands] Enforcer shotgun muzzle: " + e.Message); }
+            orig(self);
+        }
+
+        /// <summary>
+        /// 2.24.30: Seeker's Spirit Punch spawns its projectile at the MODEL's muzzle (childLocator
+        /// muzzleString) - on the hidden first-person model that is up near the head, so shots started
+        /// above the head and landed high. Use the dominant VR hand's muzzle (same child-locator entry
+        /// the Enforcer shotgun uses); the direction is the dominant hand's aim ray (EditAimray).
+        /// </summary>
+        private static void SetSpiritPunchMuzzle(On.EntityStates.Seeker.SpiritPunch.orig_FireGauntlet orig, EntityStates.Seeker.SpiritPunch self)
+        {
+            try
+            {
+                if (self.characterBody && self.characterBody.IsLocalBody()) self.muzzleString = "CurrentDominantMuzzle";
+            }
+            catch (Exception e) { VRMod.StaticLogger.LogWarning("[VR hands] Spirit Punch muzzle: " + e.Message); }
+            orig(self);
+        }
+
+        /// <summary>Seeker's Palm Blast charge VFX hangs off a model child (hidden model) - use the dominant hand muzzle.</summary>
+        private static void SetPalmBlastChargeMuzzle(On.EntityStates.Seeker.BaseChargePalmBlast.orig_SpawnChargeVfx orig, EntityStates.Seeker.BaseChargePalmBlast self)
+        {
+            string saved = EntityStates.Seeker.BaseChargePalmBlast.chargeVfxChildLocatorName;
+            try
+            {
+                if (self.characterBody && self.characterBody.IsLocalBody()) EntityStates.Seeker.BaseChargePalmBlast.chargeVfxChildLocatorName = "CurrentDominantMuzzle";
+                orig(self);
+            }
+            finally { EntityStates.Seeker.BaseChargePalmBlast.chargeVfxChildLocatorName = saved; }
+        }
+
+        /// <summary>
+        /// Seeker's Palm Blast muzzle flash uses a model child too. The projectile itself spawns on the
+        /// SERVER at the server's idea of the aim ray (GetAimRay there): when we host that is our hand
+        /// (EditAimray); when we are a client it is the vanilla aim origin of our body on the host - not
+        /// something the client can move.
+        /// </summary>
+        private static void SetPalmBlastMuzzle(On.EntityStates.Seeker.BaseFirePalmBlast.orig_FireProjectile orig, EntityStates.Seeker.BaseFirePalmBlast self)
+        {
+            string saved = self.muzzleFireVfxLocatorName;
+            try
+            {
+                if (self.characterBody && self.characterBody.IsLocalBody()) self.muzzleFireVfxLocatorName = "CurrentDominantMuzzle";
+                orig(self);
+            }
+            finally { self.muzzleFireVfxLocatorName = saved; }
         }
 
         private static void ShrinkChargeEffect(On.EntityStates.Captain.Weapon.ChargeCaptainShotgun.orig_OnEnter orig, EntityStates.Captain.Weapon.ChargeCaptainShotgun self)
@@ -934,11 +1010,35 @@ namespace VRMod
             return orig(self);
         }
 
+        private static bool IsRuntimeHandBody(CharacterBody body)
+        {
+            string bodyName = body.name.Replace("(Clone)", "").Trim();
+            return System.Array.IndexOf(RuntimeHands.KnownRuntimeHandBodies, bodyName) >= 0;
+        }
+
         private static Ray EditAimray(On.EntityStates.BaseState.orig_GetAimRay orig, EntityStates.BaseState self)
         {
             if (self.characterBody.IsLocalBody())
             {
                 bool isMULT = self.characterBody.name.Contains("ToolbotBody");
+
+                // 2.24.11: Enforcer's riot shotgun aims from the hand that holds it (left unless mirrored),
+                // not from the dominant hand's muzzle (which is the shield hand by default).
+                if (self is EntityStates.Enforcer.FireRiotShotgunBase)
+                {
+                    HandController gun = GetHandBySide(EnforcerShotgunOnLeft);
+                    if (gun) return gun.aimRay;
+                }
+
+                // 2.24.29: the runtime-hand survivors (Operator, Seeker, Chef, False Son, Drifter, Acolyte,
+                // Enforcer) always aim with the DOMINANT hand's aim ray - right hand when right-handed, left
+                // hand when left-handed - wherever the model holds its weapon. (Enforcer's shotgun is in the
+                // dominant hand, handled above.) Replaces 2.24.27's "weapon hand when left-handed".
+                if (IsRuntimeHandBody(self.characterBody))
+                {
+                    HandController dom = GetHandByDominance(true);
+                    if (dom) return dom.aimRay;
+                }
 
                 if (nonDominantHandStateTypes.Contains(self.GetType()) || (isMULT && self.outer.customName == "Weapon2"))
                     return GetHandByDominance(false).aimRay;

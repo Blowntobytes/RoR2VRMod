@@ -7,6 +7,10 @@ namespace VRMod
 {
     internal static class BakedHandDefaults
     {
+        /// <summary>2.24.25: characters whose baked values were tuned with "Rotate around mesh centre" on -
+        /// they keep that pivot in builds without VRMod.HandTuning.cfg.</summary>
+        internal static readonly HashSet<string> MeshCentrePivot = new HashSet<string> { "Enforcer2Body" };
+
         internal static readonly Dictionary<string, string> Values = new Dictionary<string, string>
         {
             { "AcolyteBody_LeftRotX", "0" },
@@ -133,9 +137,9 @@ namespace VRMod
             { "DroneTechBody_WeaponRotZ", "0" },
             { "DroneTechBody_WeaponRotBase", "0.153046, -0.690346, 0.030844, 0.706434" },
             { "DroneTechBody_Forearm", "true" },
-            { "Enforcer2Body_LeftRotX", "340" },
-            { "Enforcer2Body_LeftRotY", "0" },
-            { "Enforcer2Body_LeftRotZ", "0" },
+            { "Enforcer2Body_LeftRotX", "0" },
+            { "Enforcer2Body_LeftRotY", "-20" },
+            { "Enforcer2Body_LeftRotZ", "20" },
             { "Enforcer2Body_LeftPosX", "0" },
             { "Enforcer2Body_LeftPosY", "0" },
             { "Enforcer2Body_LeftPosZ", "0" },
@@ -143,28 +147,28 @@ namespace VRMod
             { "Enforcer2Body_AimRotX", "0" },
             { "Enforcer2Body_AimRotY", "0" },
             { "Enforcer2Body_AimRotZ", "0" },
-            { "Enforcer2Body_LeftRotBase", "-0.300335, -0.752824, -0.403354, 0.424688" },
+            { "Enforcer2Body_LeftRotBase", "0.369519, 0.671345, 0.527953, -0.366084" },
             { "Enforcer2Body_AimRotBase", "0.496083, -0.112957, 0.065641, 0.85839" },
             { "Enforcer2Body_RightRotX", "0" },
-            { "Enforcer2Body_RightRotY", "0" },
-            { "Enforcer2Body_RightRotZ", "0" },
+            { "Enforcer2Body_RightRotY", "-20" },
+            { "Enforcer2Body_RightRotZ", "20" },
             { "Enforcer2Body_RightPosX", "0" },
             { "Enforcer2Body_RightPosY", "0" },
             { "Enforcer2Body_RightPosZ", "0" },
             { "Enforcer2Body_RightRotBase", "0.212012, -0.148453, 0.554032, 0.79124" },
-            { "Enforcer2Body_LeftWeaponPosX", "0" },
+            { "Enforcer2Body_LeftWeaponPosX", "-0.05" },
             { "Enforcer2Body_LeftWeaponPosY", "-0.2" },
             { "Enforcer2Body_LeftWeaponPosZ", "1.25" },
-            { "Enforcer2Body_LeftWeaponRotX", "10" },
-            { "Enforcer2Body_LeftWeaponRotY", "15" },
-            { "Enforcer2Body_LeftWeaponRotZ", "0" },
-            { "Enforcer2Body_LeftWeaponRotBase", "-0.731699, -0.074605, -0.675792, -0.048535" },
+            { "Enforcer2Body_LeftWeaponRotX", "0" },
+            { "Enforcer2Body_LeftWeaponRotY", "-5" },
+            { "Enforcer2Body_LeftWeaponRotZ", "15" },
+            { "Enforcer2Body_LeftWeaponRotBase", "-0.639849, -0.130068, -0.756709, 0.032678" },
             { "Enforcer2Body_RightWeaponPosX", "0" },
             { "Enforcer2Body_RightWeaponPosY", "0" },
             { "Enforcer2Body_RightWeaponPosZ", "0" },
-            { "Enforcer2Body_RightWeaponRotX", "0" },
-            { "Enforcer2Body_RightWeaponRotY", "0" },
-            { "Enforcer2Body_RightWeaponRotZ", "0" },
+            { "Enforcer2Body_RightWeaponRotX", "1" },
+            { "Enforcer2Body_RightWeaponRotY", "10" },
+            { "Enforcer2Body_RightWeaponRotZ", "20" },
             { "Enforcer2Body_RightWeaponRotBase", "0.599654, 0.018234, 0.458316, 0.655766" },
             { "Enforcer2Body_Forearm", "true" },
             { "Enforcer2Body_ViewScale", "0" },

@@ -153,10 +153,24 @@ namespace VRMod
             // the player can read it. RoR2 already shows the name; we add the stats.
             if (!newPingInfo.targetNetworkIdentity) return;
 
+            // Items on the ground, shop terminals (Bazaar, multishops, cauldrons, Crucible…) and
+            // anything else that shows a pickup model.
+            PickupIndex pickupIndex = PickupIndex.none;
             GenericPickupController pickup = newPingInfo.targetNetworkIdentity.GetComponent<GenericPickupController>();
-            if (!pickup) return;
+            if (pickup) pickupIndex = pickup.pickupIndex;
+            else
+            {
+                ShopTerminalBehavior shop = newPingInfo.targetNetworkIdentity.GetComponent<ShopTerminalBehavior>();
+                if (shop && !shop.pickupIndexIsHidden) pickupIndex = shop.CurrentPickupIndex();
+                else if (!shop)
+                {
+                    PickupDisplay display = newPingInfo.targetNetworkIdentity.GetComponentInChildren<PickupDisplay>();
+                    if (display) pickupIndex = display.GetPickupIndex();
+                }
+            }
+            if (pickupIndex == PickupIndex.none) return;
 
-            PickupDef pickupDef = PickupCatalog.GetPickupDef(pickup.pickupIndex);
+            PickupDef pickupDef = PickupCatalog.GetPickupDef(pickupIndex);
             if (pickupDef == null) return;
 
             string desc = null;

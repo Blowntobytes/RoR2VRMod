@@ -36,6 +36,10 @@ namespace VRMod
                 // 2.23.47: the stick can also land the selection on the in-game HUD (seen: the
                 // key item slot's IconPanel under BottomRightCluster/ExtraButtonPanels) - a HUD
                 // element must never hold the UI selection while playing.
+                // 2.24.28: the drone picker (RemoteOperationDronePickerPanel) and the item/command pickers
+                // (PickupPickerPanel) also live under the HUD - clearing their selection every 0.25 s made
+                // the highlight jump back to the first entry (gamepad players, multiplayer reports).
+                if (sel.activeInHierarchy && (sel.GetComponentInParent<PickupPickerPanel>() || sel.GetComponentInParent<RemoteOperationDronePickerPanel>())) return;
                 bool stale = !sel.activeInHierarchy || sel.GetComponentInParent<PauseScreenController>() || IsUnderSettings(sel.transform) || sel.GetComponentInParent<HUD>();
                 if (!stale) return;
                 es.SetSelectedGameObject(null);

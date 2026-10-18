@@ -672,6 +672,32 @@ namespace VRMod
                         childLocator.transformPairs = transformPairList.ToArray();
                     }
                 }
+
+                // 2.24.10: Engineer's Laser Cutter (Hallowed Concepts alt primary) parents its beam VFX to the
+                // model's "MuzzleBeamLeft/Right". The model is hidden in first person, so the beams were
+                // invisible: point those entries at the hands so the beams come out of the controllers.
+                try
+                {
+                    HandController leftHand = GetHandBySide(true), rightHand = GetHandBySide(false);
+                    for (int i = 0; i < childLocator.transformPairs.Length; i++)
+                    {
+                        string n = childLocator.transformPairs[i].name;
+                        if (n == "MuzzleBeamLeft" && leftHand && leftHand.currentHand && leftHand.currentHand.currentMuzzle)
+                            childLocator.transformPairs[i].transform = leftHand.currentHand.currentMuzzle.transform;
+                        else if (n == "MuzzleBeamRight" && rightHand && rightHand.currentHand && rightHand.currentHand.currentMuzzle)
+                            childLocator.transformPairs[i].transform = rightHand.currentHand.currentMuzzle.transform;
+                        // 2.24.31: False Son's Laser of the Father charges at "MuzzleLaser" and spawns/parents
+                        // its beam at "LaserOriginStanding/Sprinting" - chest points of the hidden model.
+                        // Point all three at the dominant hand so the beam comes out of the hand.
+                        else if ((n == "MuzzleLaser" || n == "LaserOriginStanding" || n == "LaserOriginSprinting") && body.name.StartsWith("FalseSonBody"))
+                        {
+                            HandController dom = GetHandByDominance(true);
+                            if (dom && dom.currentHand && dom.currentHand.currentMuzzle)
+                                childLocator.transformPairs[i].transform = dom.currentHand.currentMuzzle.transform;
+                        }
+                    }
+                }
+                catch (Exception e) { VRMod.StaticLogger.LogWarning("[VR hands] beam muzzle remap: " + e.Message); }
             }
 
             UpdateForcedAimRay();

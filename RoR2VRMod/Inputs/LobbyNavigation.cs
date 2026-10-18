@@ -57,6 +57,7 @@ namespace VRMod
         {
             CharacterSelectController lobby = activeLobby;
             if (!lobby || !lobby.isActiveAndEnabled) return;
+            try { RestoreLostSelection(lobby); } catch { }
 
             if (Time.frameCount < nextSweepFrame) return;
             nextSweepFrame = Time.frameCount + 15;
@@ -250,6 +251,47 @@ namespace VRMod
                 entries[i].selectable.navigation = nav;
             }
 
+        }
+
+        // ---- 2.24.35: the first A on a survivor left the menu with NO selected control (log: selected ->
+        // none for 8 s, every stick input landed on nothing); the second pick put it on the survivor info
+        // panel. When nothing has been selected for 0.2 s, select the first control of the visible survivor
+        // info panel, else the survivor grid. Does nothing while something is selected.
+        private static float noSelectionSince = -1f;
+
+        private static void RestoreLostSelection(CharacterSelectController lobby)
+        {
+            MPEventSystem es = null;
+            try { LocalUser lu = LocalUserManager.GetFirstLocalUser(); es = lu != null ? lu.eventSystem : null; } catch { }
+            if (!es) return;
+            GameObject sel = es.currentSelectedGameObject;
+            if (sel && sel.activeInHierarchy) { noSelectionSince = -1f; return; }
+            if (noSelectionSince < 0f) { noSelectionSince = Time.unscaledTime; return; }
+            if (Time.unscaledTime - noSelectionSince < 0.2f) return;
+
+            Selectable target = null;
+            Transform info = FindChildByPrefix(lobby.transform, "SurvivorInfoPanel");
+            if (info && info.gameObject.activeInHierarchy)
+            {
+                foreach (Selectable s in info.GetComponentsInChildren<Selectable>(false))
+                {
+                    if (!s || !s.IsInteractable() || s is Scrollbar) continue;
+                    if (s.name.StartsWith("SkillStrip")) { target = s; break; }
+                    if (!target) target = s;
+                }
+            }
+            if (!target) target = DefaultSelectable();
+            if (!target) return;
+            es.SetSelectedGameObject(target.gameObject);
+            noSelectionSince = -1f;
+            VRMod.StaticLogger.LogInfo($"[VR lobby] no control was selected - selected '{target.name}'.");
+        }
+
+        private static Transform FindChildByPrefix(Transform root, string prefix)
+        {
+            foreach (Transform t in root.GetComponentsInChildren<Transform>(false))
+                if (t.name.StartsWith(prefix)) return t;
+            return null;
         }
     }
 }

@@ -36,6 +36,10 @@ namespace VRMod
         internal static ConfigEntry<float> RailgunnerWeaponGripSnapAngle { get; private set; }
         internal static ConfigEntry<float> RailgunnerZoomMultiplier { get; private set; }
         internal static ConfigEntry<int> EnforcerShieldOpacity { get; private set; }
+        /// <summary>2.24.27: the Enforcer model holds the shotgun in its LEFT arm; it goes to the dominant hand,
+        /// so for right-handed players the arms are swapped (mirrored). Replaces the removed "Mirror hands" option.</summary>
+        internal static bool EnforcerMirrored => !LeftDominantHand.Value;
+        internal static ConfigEntry<bool> InteractOrJump { get; private set; }
         internal static ConfigEntry<bool> RailgunnerDisableScopeRay { get; private set; }
         internal static Color RayColor = Color.white;
 
@@ -45,6 +49,7 @@ namespace VRMod
         internal static ConfigEntry<bool> UseSmoothHUD { get; private set; }
         internal static ConfigEntry<int> HUDWidth { get; private set; }
         internal static ConfigEntry<int> HUDHeight { get; private set; }
+        internal static ConfigEntry<bool> WristChatNoFade { get; private set; }
         internal static ConfigEntry<float> BottomAnchor { get; private set; }
         internal static ConfigEntry<float> TopAnchor { get; private set; }
         internal static ConfigEntry<float> LeftAnchor { get; private set; }
@@ -81,6 +86,10 @@ namespace VRMod
         internal static ConfigEntry<bool> RuntimeHands { get; private set; }
 
         internal static ConfigEntry<bool> RuntimeHandsDebug { get; private set; }
+        internal static ConfigEntry<bool> FreezeKeepsCharacter { get; private set; }
+        internal static ConfigEntry<bool> PivotAtMeshCenter { get; private set; }
+        /// <summary>2.24.25: tuning file present = the "Rotate around mesh centre" option; otherwise the baked per-character choice.</summary>
+        internal static bool MeshPivotFor(string bodyName) => HandTuningEnabled ? PivotAtMeshCenter.Value : BakedHandDefaults.MeshCentrePivot.Contains(bodyName);
         internal static ConfigEntry<bool> RuntimeHandsRay { get; private set; }
         internal static ConfigEntry<string> HiddenItemDisplays { get; private set; }
         internal static ConfigEntry<bool> MenuSelectionFrame { get; private set; }
@@ -248,7 +257,7 @@ namespace VRMod
             configFile.SaveOnConfigSet = false;
             CreateHandFile();
             RemoveHandSectionsFromMainConfig();
-            try { InitEntries(); }
+            try { InitEntries(); Inputs.Bindings.BindingActions.BindConfig(configFile); }
             finally
             {
                 configFile.SaveOnConfigSet = true;
@@ -383,6 +392,12 @@ namespace VRMod
                 100,
                 "How solid Enforcer's shield looks in your right hand while you are shielding, in percent. 0 = invisible, 100 = fully solid."
             );
+            InteractOrJump = configFile.Bind<bool>(
+                "Controls",
+                "A: Jump when nothing to interact with",
+                false,
+                "When nothing is in reach to activate, A jumps. When a chest, shrine, teleporter or other interactable is in reach, A activates it and does not jump. B always jumps."
+            );
             RailgunnerZoomMultiplier = configFile.Bind<float>(
                 "Survivor Settings",
                 "Railgunner: Zoom multiplier",
@@ -407,6 +422,18 @@ namespace VRMod
                 "Debug mode",
                 false,
                 "Draws axis lines on runtime hands: X = RED, Y = GREEN, Z = BLUE. The hand gizmo shows the axes the hand Rot/Pos offsets act on (it stays put while you tune); a second gizmo on a held weapon shows the weapon offsets' axes. Lines update with each config reload and logs every entity state the local character enters. (Each character's offsets are in its own 'Character - <Body>' section and are re-read within 5 seconds of saving this file, debug mode or not.)"
+            );
+            FreezeKeepsCharacter = handFile.Bind<bool>(
+                "RuntimeHands",
+                "Freeze keeps your character moving",
+                true,
+                "Debug mode freeze (both grips + left stick click, solo): true = only the world freezes - enemy AI and spawning stop and you cannot take damage, but your character keeps running, so skills and stances (e.g. Enforcer's shield) can be used while tuning. false = game time stops completely (old behaviour)."
+            );
+            PivotAtMeshCenter = handFile.Bind<bool>(
+                "RuntimeHands",
+                "Rotate around mesh centre",
+                false,
+                "true = the hand Rot X/Y/Z and Weapon Rot X/Y/Z offsets turn the hand / weapon about the CENTRE of its own mesh, and the gizmos are drawn there. With all Rot X/Y/Z at 0 nothing moves when this is switched; non-zero rotation offsets are applied about the new pivot (re-tune them, then bake). false = rotate about the bone / weapon pivot (old behaviour)."
             );
             RuntimeHandsRay = handFile.Bind<bool>(
                 "RuntimeHands",
@@ -530,6 +557,12 @@ namespace VRMod
                 1000,
                 "Height of the camera HUD."
             );
+            WristChatNoFade = configFile.Bind<bool>(
+                "HUD Settings",
+                "Wrist chat always visible",
+                true,
+                "Keeps the chat on the wrist readable instead of fading out a few seconds after the last message."
+            );
             BottomAnchor = configFile.Bind<float>(
                 "HUD Settings",
                 "Bottom anchor",
@@ -599,7 +632,7 @@ namespace VRMod
                 "Controls",
                 "Set left hand as dominant",
                 false,
-                "Swaps left/right triggers and grips. The aiming hand for each skill is also swapped as well as hand models."
+                "Swaps left/right triggers and grips. The aiming hand for each skill is also swapped as well as hand models. Restart the run after switching modes (switching mid-run can leave held weapons see-through or firing from the wrong spot)."
             );
             ControllerMovementDirection = configFile.Bind<bool>(
                 "Controls",
@@ -627,6 +660,7 @@ namespace VRMod
             TempLockedCameraPitchValue = (SnapTurn.Value || InitialMotionControlsValue) ? true : LockedCameraPitch.Value;
 
             settings.Add("vr_auto_sprint", new ConfigSetting(AutoSprint, ConfigSetting.SettingUpdate.Instant));
+            settings.Add("vr_interact_or_jump", new ConfigSetting(InteractOrJump, ConfigSetting.SettingUpdate.Instant));
             settings.Add("vr_highlight_chests", new ConfigSetting(HighlightChests, ConfigSetting.SettingUpdate.Instant, ChestHighlighter.OnSettingChanged));
             settings.Add("vr_item_hints", new ConfigSetting(ItemHints, ConfigSetting.SettingUpdate.Instant));
             settings.Add("vr_snap_turn", new ConfigSetting(SnapTurn, ConfigSetting.SettingUpdate.Instant));
@@ -657,6 +691,7 @@ namespace VRMod
             settings.Add("vr_railgunner_scoperay", new ConfigSetting(RailgunnerDisableScopeRay, ConfigSetting.SettingUpdate.Instant));
             settings.Add("vr_hud_width", new ConfigSetting(HUDWidth, 400, 2400, ConfigSetting.SettingUpdate.Instant, ChangeHUDSize));
             settings.Add("vr_hud_height", new ConfigSetting(HUDHeight, 400, 2400, ConfigSetting.SettingUpdate.Instant, ChangeHUDSize));
+            settings.Add("vr_wrist_chat_nofade", new ConfigSetting(WristChatNoFade, ConfigSetting.SettingUpdate.Instant));
             settings.Add("vr_anchor_bottom", new ConfigSetting(BottomAnchor, 0, 1, ConfigSetting.SettingUpdate.Instant, ChangeHUDAnchors));
             settings.Add("vr_anchor_top", new ConfigSetting(TopAnchor, 0, 1, ConfigSetting.SettingUpdate.Instant, ChangeHUDAnchors));
             settings.Add("vr_anchor_left", new ConfigSetting(LeftAnchor, 0, 1, ConfigSetting.SettingUpdate.Instant, ChangeHUDAnchors));
@@ -706,6 +741,19 @@ namespace VRMod
             }
         }
 
+        private static void RebuildEnforcerForDominance()
+        {
+            try
+            {
+                RoR2.CharacterBody body = MotionControls.currentBody;
+                if (!body || !body.name.StartsWith("Enforcer2Body")) return;
+                MotionControls.SetHandPair(body);          // shotgun arm to the new dominant hand
+                Controllers.ApplyRemaps("Enforcer2Body");
+                VRMod.StaticLogger.LogInfo($"[VR hands] Enforcer hands rebuilt for {(LeftDominantHand.Value ? "left" : "right")}-handed play.");
+            }
+            catch (Exception ex) { VRMod.StaticLogger.LogWarning("[VR hands] Enforcer dominance change: " + ex.Message); }
+        }
+
         private static void ChangeHandDominance(object sender, EventArgs e)
         {
             if (LeftDominantHand.Value == prevLeftHandedValue) return;
@@ -714,6 +762,7 @@ namespace VRMod
 
             Controllers.ChangeDominanceDependantMaps();
             MotionControls.UpdateDominance();
+            RebuildEnforcerForDominance(); // 2.24.27
         }
 
         private static void ChangeHUDAnchors(object sender, EventArgs e)

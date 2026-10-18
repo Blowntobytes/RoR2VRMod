@@ -986,6 +986,7 @@ namespace VRMod
                     chatCluster.pivot = new Vector2(0.5f, 0f);
                     chatCluster.localPosition = Vector3.zero;
                     MotionControls.AddWatchHUD(true, chatCluster);
+                    WristChatBox.Attach(chatCluster, hud);   // only the "always visible" option; placement is DrBibop's
                 }
 
                 RectTransform difficultyCluster = HudFind(hud, springCanvas, "UpperRightCluster");

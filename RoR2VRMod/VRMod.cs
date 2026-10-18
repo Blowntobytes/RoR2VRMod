@@ -14,7 +14,7 @@ using UnityEngine.XR.OpenXR.Features;
 [assembly: SecurityPermission(SecurityAction.RequestMinimum, SkipVerification = true)]
 namespace VRMod
 {
-    [BepInPlugin("com.DrBibop.VRMod", "Resurrected VRMod", "1.0.6")]
+    [BepInPlugin("com.DrBibop.VRMod", "Resurrected VRMod", "1.1.0")]
     [BepInDependency("com.Moffein.BanditTweaks", BepInDependency.DependencyFlags.SoftDependency)]
     public class VRMod : BaseUnityPlugin
     {
@@ -38,6 +38,8 @@ namespace VRMod
             Controllers.AddSkillBindingOverride("Enforcer2Body", RoR2.SkillSlot.Secondary, RoR2.SkillSlot.Primary, RoR2.SkillSlot.Special, RoR2.SkillSlot.Utility);
             ActionAddons.Init();
             VanillaContentCompat.Init(); // 2.23.48 - load content like vanilla so vanilla players can play with us
+            EclipseLiteEffect.Init(); // 2.23.51 - no proc flash from Eclipse Lite (graphical issues in VR)
+            Inputs.DroneFlight.Init(); // 2.23.49/50 - remote-op drone: right grip = up, left grip = down
             SettingsAddon.Init();
             UIFixes.Init();
             ChestHighlighter.Init();
