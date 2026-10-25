@@ -19,6 +19,7 @@ Open the in-game *Settings* and pick the **VR** tab (the same options are in `Be
 - **Enforcer: Shield opacity** — how solid Enforcer's shield looks while shielding (0 = invisible, 100 = solid).
 - **Enforcer** — the shotgun is always in your dominant hand and the shield in the other (right-handed: shotgun right, shield left; left-handed: the mirror image). Triggers and grips use the normal layout: the dominant trigger fires the shotgun, and Protect and Serve (raise the shield) is on the grip of the shield hand. Shots come out of the shotgun. The shield, and any items attached to it, are only drawn while it is raised; its transparency is the **Enforcer: Shield opacity** slider in the VR settings.
 - **Left-handed mode** — turn on "Left dominant hand" in the VR settings. The skill buttons swap sides, and the Seekers of the Storm, Alloyed Collective and Hallowed Concepts survivors become an exact mirror image of right-handed mode, aiming with the left hand. Restart the run after switching (switching mid-run can leave weapons see-through or firing from the wrong spot).
+- Rebinding — A new tab that gives you the ability to rebind buttons
 
 
 
