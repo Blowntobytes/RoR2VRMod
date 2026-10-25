@@ -8,11 +8,11 @@ This is an unofficial, community-maintained rebuild of [DrBibop's RoR2VRMod](htt
 
 Open the in-game *Settings* and pick the **VR** tab (the same options are in `BepInEx/config/VRMod.cfg`, editable from the mod manager's Config editor). Notable features in this build:
 
-- **Auto Sprint** — *On by default* - sprint automatically whenever you push the left stick, and re-engage on its own after anything cancels the sprint (firing a skill, taking a hit). Also works with a regular gamepad.
+- **Auto Sprint** — *Off by default* - sprint automatically whenever you push the left stick, and re-engage on its own after anything cancels the sprint (firing a skill, taking a hit). Also works with a regular gamepad.
 - **A: Jump when nothing to interact with** — A interacts as usual and jumps when nothing is in reach.
 - **Wrist chat always visible** — *On by default* keeps the chat on your left watch readable instead of fading out.
 - **Highlight chests** — Chest, teleporters, shrines will have a yellow glow for easy locating.
-- **Item hints** — *On by default* When pinging an item or scrolling through items in a command run, item name and info will be included on your left wrist or at the bottom of the picker panel.
+- **Item hints** — *Off by default* When pinging an item or scrolling through items in a command run, item name and info will be included on your left wrist or at the bottom of the picker panel.
 - **Seated mode** — *On by default* Because who wants to stand when playing this game? You can disable it to switch to standing mode but you'll have to restart the game to apply.
 - **Hidden item displays** — items whose 3D model is too distracting to display (default: Kinetic Dampener, Harvesters Scythe). Comma-separated, matched by in-game name; the items still work.
 - **Menu selection frame** / **VR keyboard** / **VR chat (left stick click)** — *On by default* the amber selection frame, the on-screen keyboard and the chat shortcut; each can be switched off.
