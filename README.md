@@ -153,5 +153,5 @@ The original Visual Studio project files are kept, but this build was produced w
 **Daerst:** fixed the biggest and oldest bug of the original mod\
 **laila, HutchyBen, Skarl1n, Geb, Popzix, Terrorcotta211:** controller support for the original mod\
 **Blowntobytes:** welder, current-game-version port, OpenXR rebuild and maintenance of this fork\
-The `ParentCamera.projectionMatrix = _childCamera.GetStereoProjectionMatrix(eye)` stereo fix came from a community report.
+The `ParentCamera.projectionMatrix = _childCamera.GetStereoProjectionMatrix(eye)` stereo fix came from a community report\
 Playtesters: JosheM, Void-Citizen, Thanjar(for left-handed mode)
