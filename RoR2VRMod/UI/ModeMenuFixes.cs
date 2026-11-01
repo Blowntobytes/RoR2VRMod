@@ -60,6 +60,10 @@ namespace VRMod
         {
             if (Time.unscaledTime < nextCheck) return;
             nextCheck = Time.unscaledTime + CheckInterval;
+            // 2.26.5: mode screens only exist outside a run. The three FindObjectsOfType scans
+            // below walk every object in the scene; on a stage that cost ~50 ms every 0.5 s
+            // ("[VR frames]" log: ~60 ms spikes exactly 0.50 s apart, solo, Damp Caverns).
+            if (Run.instance) return;
 
             try
             {

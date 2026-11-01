@@ -46,6 +46,7 @@ Only VR players need the mod. You can play with vanilla (non-VR) players.
 - Dependencies listed above
 - Turn off "Use Desktop Game Theater while SteamVR is active" in the game's Steam properties.
 - Do **not** turn on the old "Use Oculus mode" config option — it is a leftover from the pre-OpenXR mod and does nothing in this build.
+- PICO 4 users- (PICO Connect): start SteamVR BEFORE launching the game. If the view is at the wrong height, recenter in SteamVR (SteamVR menu → Reset Seated Position).
 
 
 

@@ -19,13 +19,41 @@ namespace VRMod
         internal static void Init()
         {
             RoR2Application.onUpdate += Tick;
+
+            // 2.26.26: some pickers carry a UIInputPassthrough with OnlyAllowMovement, so vanilla
+            // still lets the body move while they are open (mouse players pick with the cursor and
+            // walk with WASD). In VR the same thumbstick both navigates the picker and moves, so the
+            // character walked while the player was choosing. While the UI selection sits in an
+            // item/command picker, report no passthrough -> CanSendBodyInput stops all body input.
+            On.RoR2.LocalUser.GetUIPassthrough += (orig, self) =>
+            {
+                UIInputPassthrough pass = orig(self);
+                if (!pass) return pass;
+                try
+                {
+                    GameObject sel = self.eventSystem ? self.eventSystem.currentSelectedGameObject : null;
+                    if (sel && (sel.GetComponentInParent<PickupPickerPanel>() || sel.GetComponentInParent<RemoteOperationDronePickerPanel>()))
+                    {
+                        if (!loggedPassthroughBlock)
+                        {
+                            loggedPassthroughBlock = true;
+                            VRMod.StaticLogger.LogInfo($"[VR focus] Picker '{sel.transform.root.name}' allows walking while open (UIInputPassthrough) - movement blocked in VR while it has the selection.");
+                        }
+                        return null;
+                    }
+                }
+                catch { }
+                return pass;
+            };
         }
+
+        private static bool loggedPassthroughBlock;
 
         private static void Tick()
         {
             if (Time.unscaledTime < nextCheck) return;
             nextCheck = Time.unscaledTime + 0.25f;
-            if (PauseManager.isPaused || !Run.instance) return;
+            if (Utils.IsPauseMenuOpen || !Run.instance) return; // 2.26.13: isPaused can be stale after a remote MP pause
             try
             {
                 LocalUser lu = LocalUserManager.GetFirstLocalUser();

@@ -2,6 +2,33 @@
 
 This package continues [DrBibop's RoR2VRMod](https://github.com/DrBibop/RoR2VRMod) (MIT), whose own history ends at 2.9.2; its original changelog is kept in the source repository as `CHANGELOG-original-DrBibop.md`. Version numbers restart at 1.0.x for this package.
 
+### 1.1.1
+
+**New**
+- **VR performance mode** (VR tab, off by default): reduces on-screen effects in big fights for a smoother frame rate. With it on, far fewer low/medium-priority effects are spawned when many are on screen, new damage numbers are capped at 30 per second, at most 150 of your team's projectiles are drawn at once (at most 8 Electric Boomerangs), and at most 10 experience orbs are drawn per second. Visual only - hits, damage, gold and experience are unchanged, and other players are not affected.
+- **Reduce sounds under heavy load** (VR tab, off by default): when the same sound is triggered many times at once, only the first few copies play instead of dozens stacking up. Hit, crit and gold pickup sounds are kept.
+- **Enforcer: Shield always visible** (Survivor settings, off by default): keeps the shield in your hand at all times instead of only while shielding. The shield opacity slider still applies.
+- **Enforcer:** items attached to the shield (for example Bison Steak) now fade with the shield opacity slider too.
+- **Enforcer:** the shield dash (ram) now goes the way you move - your head, or your controller if "Use controller direction for movement" is on - instead of where your aiming hand points.
+- **Enforcer:** the shield sits in a re-tuned position in your hand.
+
+**Fixed**
+- **Stutter every half second during runs** (present since 1.0.5): a menu watcher scanned the whole scene twice a second even while playing. It now only runs in menus.
+- **Hands disappeared in multiplayer** after another player paused and unpaused, until you paused yourself.
+- **Pause menu invisible in VR** when opened during a stage transition (it only showed on the monitor and could not be used).
+- **ProperSave 3.1.3:** X in the lobby both readied up and loaded the save. Now X = Ready and Y = Load.
+- **Pause menu opening by itself** in the first stage after loading a save with Y in the lobby.
+- **Item / Command pickers:** your character no longer walks while you move through a picker with the stick, and a picker never opens with nothing selected (the stick moved you instead of the highlight).
+- Errors in the log from the disabled keyboard/gamepad rebind rows.
+
+**Changed**
+- Harvester's Scythe is now hidden by default (it sits on the arm and blocks the view). Existing configs keep their saved list.
+
+**Known issues**
+- PICO 4 (PICO Connect): start SteamVR before launching the game, otherwise Steam closes the game when SteamVR starts. If the view is at the wrong height, recenter in SteamVR (SteamVR menu → Reset Seated Position).
+- Switching left/right-handed mode in the middle of a run can leave held weapons see-through or firing from the wrong spot - restart the run after switching.
+- When you join someone else's game as a client, skills that the host spawns for you (for example Seeker's Palm Blast) start at your character's head height instead of your hand.
+
 ### 1.1.0
 
 **New**

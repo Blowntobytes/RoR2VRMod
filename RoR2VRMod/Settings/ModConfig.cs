@@ -36,6 +36,7 @@ namespace VRMod
         internal static ConfigEntry<float> RailgunnerWeaponGripSnapAngle { get; private set; }
         internal static ConfigEntry<float> RailgunnerZoomMultiplier { get; private set; }
         internal static ConfigEntry<int> EnforcerShieldOpacity { get; private set; }
+        internal static ConfigEntry<bool> EnforcerShieldAlwaysVisible { get; private set; }
         /// <summary>2.24.27: the Enforcer model holds the shotgun in its LEFT arm; it goes to the dominant hand,
         /// so for right-handed players the arms are swapped (mirrored). Replaces the removed "Mirror hands" option.</summary>
         internal static bool EnforcerMirrored => !LeftDominantHand.Value;
@@ -50,6 +51,8 @@ namespace VRMod
         internal static ConfigEntry<int> HUDWidth { get; private set; }
         internal static ConfigEntry<int> HUDHeight { get; private set; }
         internal static ConfigEntry<bool> WristChatNoFade { get; private set; }
+        internal static ConfigEntry<bool> ReduceEffectsUnderLoad { get; private set; }
+        internal static ConfigEntry<bool> ReduceSoundsUnderLoad { get; private set; }
         internal static ConfigEntry<float> BottomAnchor { get; private set; }
         internal static ConfigEntry<float> TopAnchor { get; private set; }
         internal static ConfigEntry<float> LeftAnchor { get; private set; }
@@ -392,6 +395,12 @@ namespace VRMod
                 100,
                 "How solid Enforcer's shield looks in your right hand while you are shielding, in percent. 0 = invisible, 100 = fully solid."
             );
+            EnforcerShieldAlwaysVisible = configFile.Bind<bool>(
+                "Survivor Settings",
+                "Enforcer: Shield always visible",
+                false,
+                "Shows Enforcer's shield at all times, not only while shielding. Still uses the shield opacity setting."
+            );
             InteractOrJump = configFile.Bind<bool>(
                 "Controls",
                 "A: Jump when nothing to interact with",
@@ -462,7 +471,7 @@ namespace VRMod
             HiddenItemDisplays = configFile.Bind<string>(
                 "VR Settings",
                 "Hidden item displays",
-                "Kinetic Dampener",
+                "Kinetic Dampener, Harvester's Scythe", // 2.26.14: Scythe sits on the arm and blocks the view on one character
                 "Comma-separated list of items whose 3D display on YOUR character is hidden in VR (they still work; only the model on the body/hands is not drawn). Matched against the item's in-game name, case-insensitive. Example: Kinetic Dampener, Bundle of Fireworks"
             );
 
@@ -562,6 +571,18 @@ namespace VRMod
                 "Wrist chat always visible",
                 true,
                 "Keeps the chat on the wrist readable instead of fading out a few seconds after the last message."
+            );
+            ReduceEffectsUnderLoad = configFile.Bind<bool>(
+                "Performance",
+                "VR performance mode",
+                false,
+                "Reduces on-screen effects in big fights for a smoother frame rate. Visual only."
+            );
+            ReduceSoundsUnderLoad = configFile.Bind<bool>(
+                "Performance",
+                "Reduce sounds under heavy load",
+                false,
+                "When the same sound is triggered many times at once (big fights, lots of item procs), only the first couple of copies are played instead of stacking dozens on top of each other. Local only - other players are not affected."
             );
             BottomAnchor = configFile.Bind<float>(
                 "HUD Settings",
@@ -663,6 +684,8 @@ namespace VRMod
             settings.Add("vr_interact_or_jump", new ConfigSetting(InteractOrJump, ConfigSetting.SettingUpdate.Instant));
             settings.Add("vr_highlight_chests", new ConfigSetting(HighlightChests, ConfigSetting.SettingUpdate.Instant, ChestHighlighter.OnSettingChanged));
             settings.Add("vr_item_hints", new ConfigSetting(ItemHints, ConfigSetting.SettingUpdate.Instant));
+            settings.Add("vr_reduce_effects", new ConfigSetting(ReduceEffectsUnderLoad, ConfigSetting.SettingUpdate.Instant));
+            settings.Add("vr_reduce_sounds", new ConfigSetting(ReduceSoundsUnderLoad, ConfigSetting.SettingUpdate.Instant));
             settings.Add("vr_snap_turn", new ConfigSetting(SnapTurn, ConfigSetting.SettingUpdate.Instant));
             settings.Add("vr_snap_angle", new ConfigSetting(SnapTurnAngle, 30, 180, ConfigSetting.SettingUpdate.Instant));
             settings.Add("vr_snap_delay", new ConfigSetting(SnapTurnHoldDelay, 0.2f, 1, ConfigSetting.SettingUpdate.Instant));
@@ -687,6 +710,7 @@ namespace VRMod
             settings.Add("vr_acrid_threshold", new ConfigSetting(AcridSwingSpeedThreshold, 5, 50, ConfigSetting.SettingUpdate.Instant, MotionControls.UpdateAcridMeleeThreshold));
             settings.Add("vr_railgunner_angle", new ConfigSetting(RailgunnerWeaponGripSnapAngle, 0, 180, ConfigSetting.SettingUpdate.Instant, MotionControls.UpdateRailgunnerSnapAngle));
             settings.Add("vr_enforcer_shield_opacity", new ConfigSetting(EnforcerShieldOpacity, 0, 100, ConfigSetting.SettingUpdate.Instant));
+            settings.Add("vr_enforcer_shield_always", new ConfigSetting(EnforcerShieldAlwaysVisible, ConfigSetting.SettingUpdate.Instant));
             settings.Add("vr_railgunner_zoom", new ConfigSetting(RailgunnerZoomMultiplier, 2, 4, ConfigSetting.SettingUpdate.Instant));
             settings.Add("vr_railgunner_scoperay", new ConfigSetting(RailgunnerDisableScopeRay, ConfigSetting.SettingUpdate.Instant));
             settings.Add("vr_hud_width", new ConfigSetting(HUDWidth, 400, 2400, ConfigSetting.SettingUpdate.Instant, ChangeHUDSize));

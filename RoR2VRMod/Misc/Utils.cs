@@ -9,7 +9,24 @@ namespace VRMod
         // PauseManager.isPaused is included so that opening the pause menu mid-run switches the
         // hands into UI-pointer mode; without it isCursorVisible stays false for the custom VR
         // controller and the motion controllers can't navigate the pause menu.
-        internal static bool isUsingUI => !Run.instance || RoR2.PauseManager.isPaused || MPEventSystemManager.primaryEventSystem.isCursorVisible || !MotionControls.currentBody;
+        internal static bool isUsingUI => !Run.instance || IsPauseMenuOpen || MPEventSystemManager.primaryEventSystem.isCursorVisible || !MotionControls.currentBody;
+
+        /// <summary>
+        /// 2.26.13: PauseManager.isPaused can stay TRUE after a multiplayer pause by ANOTHER player.
+        /// When they pause, this game opens a "minimal" pause screen; when they unpause,
+        /// PauseManager.CloseMinimalPauseScreen calls DestroyPauseScreen(false) on a networked game,
+        /// and PauseScreenController.OnDisable then returns early without clearing isPaused. The
+        /// hands stayed in UI mode (hidden) until the player paused/unpaused themselves, which does
+        /// clear it. So "paused" now also requires a pause screen to actually exist.
+        /// </summary>
+        internal static bool IsPauseMenuOpen => RoR2.PauseManager.isPaused && (bool)RoR2.PauseManager.pauseScreenInstance;
+
+        /// <summary>2.26.12 diagnostic: the state of each isUsingUI condition, for the log.</summary>
+        internal static string UIModeReason()
+        {
+            var es = MPEventSystemManager.primaryEventSystem;
+            return $"run={(bool)Run.instance}, paused={RoR2.PauseManager.isPaused}, pauseScreen={(bool)RoR2.PauseManager.pauseScreenInstance}, cursorVisible={(es ? es.isCursorVisible.ToString() : "no event system")}, body={(bool)MotionControls.currentBody}, multiplayer={(UnityEngine.Networking.NetworkServer.active ? UnityEngine.Networking.NetworkServer.connections.Count > 1 : !UnityEngine.Networking.NetworkServer.active)}";
+        }
 
         private static CharacterMaster _localMaster;
 

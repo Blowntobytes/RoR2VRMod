@@ -200,7 +200,7 @@ namespace VRMod.Inputs.Bindings
         }
 
         /// <summary>Writes every action's element. Pause/Scoreboard are skipped in the lobby (Y = Load there).</summary>
-        internal static void Apply(CustomController vr, bool lobbyActive)
+        internal static void Apply(CustomController vr, bool lobbyActive, bool blockYFromLobby = false)
         {
             bool interact = IsActive(BindAction.Interact), jump = IsActive(BindAction.Jump);
             InteractOrJump.Adjust(ref interact, ref jump);
@@ -208,6 +208,11 @@ namespace VRMod.Inputs.Bindings
             {
                 if (d.Element < 0) continue;
                 if (lobbyActive && (d.Element == 15 || d.Element == 24)) continue;
+                // 2.26.32: ProperSave 3.1.3 moved its gamepad "Load" from UISubmitTertiary to the
+                // Equipment action (Y on an Xbox pad). Equipment is X here, so X in the lobby fired
+                // Ready AND Load at once. In the lobby, Equipment is written from Y instead (below).
+                if (lobbyActive && d.Element == 12) { vr.SetButtonValueById(12, false); continue; }
+                if (blockYFromLobby && (d.Element == 15 || d.Element == 24)) { vr.SetButtonValueById(d.Element, false); continue; }
                 bool on = d.Action == BindAction.Interact ? interact : d.Action == BindAction.Jump ? jump : IsActive(d.Action);
                 vr.SetButtonValueById(d.Element, on);
             }

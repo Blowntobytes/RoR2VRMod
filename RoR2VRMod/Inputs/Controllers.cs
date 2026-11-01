@@ -341,8 +341,9 @@ namespace VRMod
             if (ModConfig.InitialMotionControlsValue && self.button)
             {
                 self.button.interactable = false;
-                HGButton hg = self.button as HGButton;
-                if (hg) { hg.updateTextOnHover = true; hg.hoverToken = "VR controls are rebound in the BINDINGS tab."; }
+                // (2.28.0) No hover text here: these rows have no hoverLanguageTextMeshController, so
+                // setting updateTextOnHover made HGButton.Start log one error per row and the text
+                // never showed anyway.
                 self.button = null;
             }
         }
@@ -462,6 +463,9 @@ namespace VRMod
             return false;
         }
 
+        private static bool lobbyYHeld;
+        private static float lobbyYReleasedAt = -1f;
+
         private static void UpdateVRInputs()
         {
             // NOTE: the old "Use Oculus mode" path used to live here. It scanned Unity's LEGACY
@@ -511,7 +515,21 @@ namespace VRMod
                 input.UpdateValues(vrControllers);
             }
 
-            Inputs.Bindings.BindingResolver.Apply(vrControllers, lobbyActive);
+            // 2.26.20 log: after loading a ProperSave from the lobby with Y (= Load there), the
+            // pause menu opened by itself in the new stage - the Y press is a Load, but its release
+            // still produced the Y "tap" (= Pause) a moment later, when the lobby was already gone.
+            // So a Y press that started in the lobby can't pause/open the scoreboard until 0.3 s after
+            // Y is released.
+            InputDevice yHand = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
+            bool yHeld = yHand.isValid && yHand.IsPressed(InputHelpers.Button.SecondaryButton, out bool yh) && yh;
+            if (lobbyActive && yHeld) lobbyYHeld = true;
+            if (lobbyYHeld)
+            {
+                if (yHeld) lobbyYReleasedAt = -1f;
+                else if (lobbyYReleasedAt < 0f) lobbyYReleasedAt = Time.unscaledTime;
+                else if (Time.unscaledTime - lobbyYReleasedAt > 0.3f) { lobbyYHeld = false; lobbyYReleasedAt = -1f; }
+            }
+            Inputs.Bindings.BindingResolver.Apply(vrControllers, lobbyActive, lobbyYHeld);
             Inputs.DroneFlight.Apply(vrControllers);
 
             foreach (BaseInput input in modInputs)
@@ -519,14 +537,15 @@ namespace VRMod
                 input.UpdateValues(vrControllers);
             }
 
-            // With elements 15 and 24 skipped above, poll Y directly for Load.
+            // With elements 15 and 24 skipped above, poll Y directly for Load: element 32 =
+            // UISubmitTertiary (ProperSave <= 3.1.2) and, since 2.26.32, element 12 = Equipment
+            // (ProperSave 3.1.3's Load action; X no longer writes it in the lobby).
             if (lobbyActive)
             {
                 InputDevice leftHand = InputDevices.GetDeviceAtXRNode(XRNode.LeftHand);
-                if (leftHand.isValid && leftHand.IsPressed(InputHelpers.Button.SecondaryButton, out bool yDown) && yDown)
-                    vrControllers.SetButtonValueById(32, true);
-                else
-                    vrControllers.SetButtonValueById(32, false);
+                bool yDown = leftHand.isValid && leftHand.IsPressed(InputHelpers.Button.SecondaryButton, out bool yv) && yv;
+                vrControllers.SetButtonValueById(32, yDown);
+                vrControllers.SetButtonValueById(12, yDown);
             }
 
             ApplyAutoSprint();

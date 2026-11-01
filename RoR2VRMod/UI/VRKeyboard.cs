@@ -282,7 +282,7 @@ namespace VRMod
             stickClickWas = click;
             if (!edge) return;
 
-            bool allowed = LobbyNavigation.IsInLobby || (Run.instance && PauseManager.isPaused);
+            bool allowed = LobbyNavigation.IsInLobby || (Run.instance && Utils.IsPauseMenuOpen);
             if (!allowed) return;
 
             ChatBox box = ChatBox.instance;

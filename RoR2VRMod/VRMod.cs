@@ -14,7 +14,7 @@ using UnityEngine.XR.OpenXR.Features;
 [assembly: SecurityPermission(SecurityAction.RequestMinimum, SkipVerification = true)]
 namespace VRMod
 {
-    [BepInPlugin("com.DrBibop.VRMod", "Resurrected VRMod", "1.1.0")]
+    [BepInPlugin("com.DrBibop.VRMod", "Resurrected VRMod", "1.1.1")]
     [BepInDependency("com.Moffein.BanditTweaks", BepInDependency.DependencyFlags.SoftDependency)]
     public class VRMod : BaseUnityPlugin
     {
@@ -38,6 +38,12 @@ namespace VRMod
             Controllers.AddSkillBindingOverride("Enforcer2Body", RoR2.SkillSlot.Secondary, RoR2.SkillSlot.Primary, RoR2.SkillSlot.Special, RoR2.SkillSlot.Utility);
             ActionAddons.Init();
             VanillaContentCompat.Init(); // 2.23.48 - load content like vanilla so vanilla players can play with us
+            DamageNumberBudget.Init(); // 2.27.0 - VR option: cap damage numbers per second
+            SoundBudget.Init(); // 2.26.0 - VR option: limit duplicate sound starts
+            ProjectileGhostBudget.Init(); // 2.28.0 - VR performance mode: max 150 player projectile visuals
+            EffectBudget.Init(); // 2.25.0 - VR performance: stricter effect budget under heavy load
+            ShieldDashDirection.Init(); // 2.26.51/52 - Enforcer shield dash follows the movement direction
+            ExpOrbBudget.Init(); // 2.26.46 - VR performance mode: cap experience orb visuals (replaces 2.26.42 gold orb cap)
             EclipseLiteEffect.Init(); // 2.23.51 - no proc flash from Eclipse Lite (graphical issues in VR)
             Inputs.DroneFlight.Init(); // 2.23.49/50 - remote-op drone: right grip = up, left grip = down
             SettingsAddon.Init();
@@ -47,6 +53,7 @@ namespace VRMod
             MenuSubmitGuard.Init();
             LobbyNavigation.Init();
             CameraFixes.Init();
+            PickerSelectionKeeper.Init(); // 2.26.27 - picker never left with nothing selected
             CutsceneFixes.Init();
             MappingMode.Init(); // 2.23.27 - form hand rebuild + debug freeze / infinite soul
             ItemDisplayHider.Init();

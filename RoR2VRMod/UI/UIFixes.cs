@@ -128,13 +128,16 @@ namespace VRMod
             On.RoR2.UI.PauseScreenController.OnEnable += (orig, self) =>
             {
                 orig(self);
-                if (!GetUICamera()) return;
-                camRotation = new Vector3(0, cachedUICam.transform.eulerAngles.y, 0);
-                CanvasToWorldSpace(self.gameObject, hdResolution, menuPosition, menuScale, true, true);
-                // Drawn after the end-of-run report (same distance), so pausing on that screen
-                // still puts the pause menu in front.
-                Canvas pauseCanvas = self.GetComponent<Canvas>();
-                if (pauseCanvas) { pauseCanvas.overrideSorting = true; pauseCanvas.sortingOrder = 200; }
+                if (!GetUICamera())
+                {
+                    // 2.26.9: pausing during a stage transition (no camera rig yet) left the pause
+                    // menu in screen space - visible on the monitor, invisible and unclickable in VR.
+                    // Retry every frame until the UI camera exists, while the menu is still open.
+                    VRMod.StaticLogger.LogInfo("[VR menu] Pause menu opened with no VR camera (stage transition) - will move it into VR when the camera exists.");
+                    RetryPauseMenu(self);
+                    return;
+                }
+                PlacePauseMenu(self);
             };
             // EquipmentIcon.Awake reads GetComponentInParent<HUD>().localUserViewer.userProfile.
             // The bottom-right skill/equipment cluster is re-parented onto the hand HUD, and the
@@ -728,6 +731,27 @@ namespace VRMod
                     self.visualizerTransform.localScale = (self is EntityStates.Engi.EngiMissilePainter.Paint.EngiMissileIndicator ? 1 : 0.1f) * Vector3.Distance(sceneCamera.transform.position, position) * Vector3.one;
                 }
             }
+        }
+
+        private static void PlacePauseMenu(PauseScreenController self)
+        {
+            camRotation = new Vector3(0, cachedUICam.transform.eulerAngles.y, 0);
+            CanvasToWorldSpace(self.gameObject, hdResolution, menuPosition, menuScale, true, true);
+            // Drawn after the end-of-run report (same distance), so pausing on that screen
+            // still puts the pause menu in front.
+            Canvas pauseCanvas = self.GetComponent<Canvas>();
+            if (pauseCanvas) { pauseCanvas.overrideSorting = true; pauseCanvas.sortingOrder = 200; }
+        }
+
+        private static void RetryPauseMenu(PauseScreenController self)
+        {
+            RoR2Application.onNextUpdate += () =>
+            {
+                if (!self || !self.isActiveAndEnabled) return; // menu closed meanwhile
+                if (!GetUICamera()) { RetryPauseMenu(self); return; }
+                PlacePauseMenu(self);
+                VRMod.StaticLogger.LogInfo("[VR menu] Pause menu moved into VR after the camera appeared.");
+            };
         }
 
         internal static void CanvasToWorldSpace(GameObject uiObject, Vector2 resolution, Vector3 positionOffset, Vector3 scale, bool addCollider, bool followRotation = false)

@@ -1778,12 +1778,12 @@ namespace VRMod
                         if (r.name.ToLowerInvariant().Contains("shield")) { shieldRenderers.Add(r); allShieldRenderers.Add(r); }
                     }
                     // 2.24.26: everything else held with the shield (item displays such as Bison Steak) is
-                    // shown only while shielding too. Visibility only - the opacity slider stays shield-only.
+                    // shown only while shielding too. 2.26.50: they also follow the shield opacity slider.
                     int extra = 0;
                     if (shieldRenderers.Count > 0)
                         foreach (MeshRenderer r in weaponSpace.GetComponentsInChildren<MeshRenderer>(true))
-                            if (!shieldRenderers.Contains(r)) { shieldRenderers.Add(r); extra++; }
-                    VRMod.StaticLogger.LogInfo($"[VR hands] Enforcer {side.ToUpperInvariant()} held parts: {names}- {shieldRenderers.Count - extra} shield part(s) + {extra} part(s) held with it, shown only while shielding.");
+                            if (!shieldRenderers.Contains(r)) { shieldRenderers.Add(r); if (!allShieldRenderers.Contains(r)) allShieldRenderers.Add(r); extra++; }
+                    VRMod.StaticLogger.LogInfo($"[VR hands] Enforcer {side.ToUpperInvariant()} held parts: {names}- {shieldRenderers.Count - extra} shield part(s) + {extra} part(s) held with it, shown with the shield and faded by the shield opacity slider.");
                 }
                 if (ModConfig.HandTuningEnabled || ModConfig.RuntimeHandsDebug.Value) VRMod.StaticLogger.LogInfo($"[VR hands] '{bodyName}' {side.ToUpperInvariant()} hand carries a weapon part: offsets Pos({weapon[0].Value:F2}, {weapon[1].Value:F2}, {weapon[2].Value:F2}) Rot({weapon[3].Value:F0}, {weapon[4].Value:F0}, {weapon[5].Value:F0}). Edit '{bodyName}_{RuntimeHands.WeaponKeyPrefix(bodyName, isLeftHand)}*' in the config (edits apply within 5 s while in game).");
             }
@@ -1900,7 +1900,8 @@ namespace VRMod
             if (shieldRenderers != null && shieldRenderers.Count > 0)
             {
                 // 2.23.41: "Enforcer: Shield opacity" (VR settings) - 0 hides it completely.
-                bool show = IsShielding(MotionControls.currentBody) && ModConfig.EnforcerShieldOpacity.Value > 0;
+                // 2.26.48: "Enforcer: Shield always visible" shows it outside shielding too (opacity still applies).
+                bool show = (ModConfig.EnforcerShieldAlwaysVisible.Value || IsShielding(MotionControls.currentBody)) && ModConfig.EnforcerShieldOpacity.Value > 0;
                 foreach (MeshRenderer r in shieldRenderers) if (r && r.enabled != show) r.enabled = show;
             }
 
