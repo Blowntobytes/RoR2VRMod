@@ -18,8 +18,11 @@ Open the in-game *Settings* and pick the **VR** tab (the same options are in `Be
 - **Menu selection frame** / **VR keyboard** / **VR chat (left stick click)** — *On by default* the amber selection frame, the on-screen keyboard and the chat shortcut; each can be switched off.
 - **Enforcer: Shield opacity** — how solid Enforcer's shield looks while shielding (0 = invisible, 100 = solid).
 - **Enforcer** — the shotgun is always in your dominant hand and the shield in the other (right-handed: shotgun right, shield left; left-handed: the mirror image). Triggers and grips use the normal layout: the dominant trigger fires the shotgun, and Protect and Serve (raise the shield) is on the grip of the shield hand. Shots come out of the shotgun. The shield, and any items attached to it, are only drawn while it is raised; its transparency is the **Enforcer: Shield opacity** slider in the VR settings.
+- **Enforcer: Shield always visible** — Off by default shows the shield in your hand all the time instead of only while it is raised. The opacity slider still applies.
 - **Left-handed mode** — turn on "Left dominant hand" in the VR settings. The skill buttons swap sides, and the Seekers of the Storm, Alloyed Collective and Hallowed Concepts survivors become an exact mirror image of right-handed mode, aiming with the left hand. Restart the run after switching (switching mid-run can leave weapons see-through or firing from the wrong spot).
-- Rebinding — A new tab that gives you the ability to rebind buttons
+- **Rebinding** — A new tab that gives you the ability to rebind buttons
+- **VR Performance mode** — Off by default reduces on-screen effects in big fights for a smoother frame rate: fewer effects, at most 30 new damage numbers per second, at most 150 of your team's projectiles (8 Electric Boomerangs) and 10 experience orbs per second drawn. Visual only - hits, damage, gold and experience are unchanged, and other players are not affected.
+- **Reduce sounds under heavy load** — Off by default stops dozens of copies of the same sound stacking up in big fights. Hit, crit and gold pickup sounds are kept.
 
 
 
@@ -132,8 +135,9 @@ Conflicts are flagged on the row. **Reset all bindings** restores the defaults. 
 ## Known issues in this build
 
 - Hand models are not shown inside menus (menus are navigated like a gamepad). Hands and weapons work normally in a run.
-- Not tested with other mods. If you have any issues, disable all other mods first before reporting and make sure the VR mod works by itself, with the dependencies it requires
-- The loading screen can sit at 0 % for about 20 seconds before it starts counting. This comes from the FixPluginTypesSerialization dependency on the current game build, not from this mod; it happens with the VR mod disabled too.
+- Pico users must first launch Steam VR before starting the game modded or it crashes. I working on trying to use Pico openXR runtime but it's going to be quite a difficult project.
+- Index track pads are not currently supported. WIP
+- NOT TESTED WITH OTHER MODS! If you have any issues, disable all other mods first before reporting and make sure the VR mod works by itself, with the dependencies it requires
 - Character support from [VRAPI](https://thunderstore.io/package/DrBibop/VRAPI/) (custom survivors with VR hands) is included unchanged but untested.
 
 The mod's internal plugin ID is still `com.DrBibop.VRMod`, so other mods that depend on the VR mod or VRAPI keep working.
