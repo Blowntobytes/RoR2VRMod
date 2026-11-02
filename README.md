@@ -16,7 +16,7 @@ Open the in-game *Settings* and pick the **VR** tab (the same options are in `Be
 - **Seated mode** — *On by default* Because who wants to stand when playing this game? You can disable it to switch to standing mode but you'll have to restart the game to apply.
 - **Hidden item displays** — items whose 3D model is too distracting to display (default: Kinetic Dampener, Harvesters Scythe). Comma-separated, matched by in-game name; the items still work.
 - **Menu selection frame** / **VR keyboard** / **VR chat (left stick click)** — *On by default* the amber selection frame, the on-screen keyboard and the chat shortcut; each can be switched off.
-- **Enforcer: Shield opacity** — how solid Enforcer's shield looks while shielding (0 = invisible, 100 = solid).
+- **Enforcer: Shield opacity** — how solid Enforcer's shield looks while shielding (0 = invisible, 100 = solid). All attached items have the same opacity-WIP.
 - **Enforcer** — the shotgun is always in your dominant hand and the shield in the other (right-handed: shotgun right, shield left; left-handed: the mirror image). Triggers and grips use the normal layout: the dominant trigger fires the shotgun, and Protect and Serve (raise the shield) is on the grip of the shield hand. Shots come out of the shotgun. The shield, and any items attached to it, are only drawn while it is raised; its transparency is the **Enforcer: Shield opacity** slider in the VR settings.
 - **Enforcer: Shield always visible** — Off by default shows the shield in your hand all the time instead of only while it is raised. The opacity slider still applies.
 - **Left-handed mode** — turn on "Left dominant hand" in the VR settings. The skill buttons swap sides, and the Seekers of the Storm, Alloyed Collective and Hallowed Concepts survivors become an exact mirror image of right-handed mode, aiming with the left hand. Restart the run after switching (switching mid-run can leave weapons see-through or firing from the wrong spot).
@@ -135,7 +135,8 @@ Conflicts are flagged on the row. **Reset all bindings** restores the defaults. 
 ## Known issues in this build
 
 - Hand models are not shown inside menus (menus are navigated like a gamepad). Hands and weapons work normally in a run.
-- Pico users must first launch Steam VR before starting the game modded or it crashes. I working on trying to use Pico openXR runtime but it's going to be quite a difficult project.
+- Pico users must first launch Steam VR before starting the game modded or it crashes. I am working on trying to use Pico openXR runtime but it's going to be quite a difficult project. If the view is at the wrong height, recenter in SteamVR (SteamVR menu → Reset Seated Position).
+
 - Index track pads are not currently supported. WIP
 - NOT TESTED WITH OTHER MODS! If you have any issues, disable all other mods first before reporting and make sure the VR mod works by itself, with the dependencies it requires
 - Character support from [VRAPI](https://thunderstore.io/package/DrBibop/VRAPI/) (custom survivors with VR hands) is included unchanged but untested.
